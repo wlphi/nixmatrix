@@ -16,6 +16,11 @@ in
     # Let's Encrypt contact email
     email = "admin@${domain}";
 
+    # Admin API on localhost only — never expose to external interfaces
+    globalConfig = ''
+      admin localhost:2019
+    '';
+
     virtualHosts = {
 
       # ── mair.io — well-known delegation only ────────────────────────────
