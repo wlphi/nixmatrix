@@ -1,0 +1,86 @@
+{ config, pkgs, lib, ... }:
+
+# LiveKit + lk-jwt-service as OCI (Podman) containers.
+#
+# `services.livekit` is NOT a standard NixOS module — running containerised
+# is safer than assuming the native module exists.
+#
+# Caddy (caddy.nix) routes:
+#   rtc.mair.io/livekit/jwt  → localhost:8082 (lk-jwt-service)
+#   rtc.mair.io/livekit/sfu  → localhost:7880 (livekit)
+#
+# Firewall (hosts/matrix-server.nix) opens:
+#   7881/tcp  — WebRTC TCP fallback
+#   50100-50200/udp — RTP media
+
+let
+  domain = "mair.io";
+  # Pin specific versions — never use :latest (breaks reproducibility silently)
+  # Check for new versions: https://github.com/livekit/livekit/releases
+  livekitVersion = "v1.7.2";
+  # Check: https://github.com/element-hq/lk-jwt-service/releases
+  lkJwtVersion = "v0.2.1";
+in
+
+{
+  sops.secrets."matrix/livekit_secret" = {};
+
+  sops.templates."livekit-jwt-env" = {
+    content = ''
+      LIVEKIT_URL=wss://rtc.${domain}/livekit/sfu
+      LIVEKIT_KEY=livekit-key
+      LIVEKIT_SECRET=${config.sops.placeholder."matrix/livekit_secret"}
+      LIVEKIT_FULL_ACCESS_HOMESERVERS=${domain}
+    '';
+    mode = "0400";
+  };
+
+  sops.templates."livekit-config" = {
+    content = ''
+      port: 7880
+      bind_addresses:
+        - "127.0.0.1"
+      rtc:
+        tcp_port: 7881
+        port_range_start: 50100
+        port_range_end: 50200
+        use_external_ip: true
+      keys:
+        livekit-key: "${config.sops.placeholder."matrix/livekit_secret"}"
+      logging:
+        json: true
+        level: info
+    '';
+    path = "/var/lib/livekit/config.yaml";
+    mode = "0644";
+  };
+
+  systemd.tmpfiles.rules = [
+    "d /var/lib/livekit 0755 root root -"
+  ];
+
+  virtualisation.oci-containers.containers = {
+
+    livekit = {
+      image = "livekit/livekit-server:${livekitVersion}";
+      ports = [
+        "127.0.0.1:7880:7880"  # HTTP / admin (internal only)
+        "0.0.0.0:7881:7881"    # WebRTC TCP fallback (public — firewall opens this)
+        "0.0.0.0:50100-50200:50100-50200/udp"  # RTP media
+      ];
+      volumes = [
+        "${config.sops.templates."livekit-config".path}:/config.yaml:ro"
+      ];
+      cmd = [ "--config" "/config.yaml" "--node-ip" "AUTO" ];
+      # Restart policy
+      extraOptions = [ "--restart=unless-stopped" ];
+    };
+
+    lk-jwt-service = {
+      image = "ghcr.io/element-hq/lk-jwt-service:${lkJwtVersion}";
+      ports = [ "127.0.0.1:8082:8080" ];  # bind to localhost only — Caddy proxies
+      environmentFiles = [ config.sops.templates."livekit-jwt-env".path ];
+      extraOptions = [ "--restart=unless-stopped" ];
+    };
+  };
+}

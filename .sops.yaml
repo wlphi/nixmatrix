@@ -1,0 +1,36 @@
+# sops recipients — both keys can decrypt all secrets.
+#
+# Bootstrap sequence (do this ONCE before running nixos-anywhere):
+#
+#   1. Generate admin age key on your dev machine (if you don't have one):
+#        age-keygen -o ~/.config/sops/age/keys.txt
+#        # Public key is printed — paste it as ADMIN_AGE_PUBKEY below
+#
+#   2. The HOST key is generated during the first nixos-anywhere run.
+#      For a clean bootstrap, generate it manually first:
+#        ssh-keygen -t ed25519 -f /tmp/host_key -N ""
+#        ssh-to-age < /tmp/host_key.pub
+#        # Paste the age1... output as HOST_AGE_PUBKEY below
+#      Then place /tmp/host_key at /etc/ssh/ssh_host_ed25519_key on the target,
+#      OR set age.sshKeyPaths in hosts/matrix-server.nix instead of age.keyFile.
+#
+#   3. Replace the placeholders below with real age public keys.
+#
+#   4. Create secrets: sops secrets/secrets.yaml
+#      (will open $EDITOR — fill in values, save, sops encrypts on exit)
+#
+#   5. Verify: sops -d secrets/secrets.yaml  (should print decrypted YAML)
+
+keys:
+  # Target host — derived from /etc/age/key.txt (generated on first boot or pre-seeded)
+  - &host age1REPLACE_WITH_HOST_AGE_PUBKEY
+
+  # Admin machine — your dev/ops workstation key
+  - &admin age1REPLACE_WITH_ADMIN_AGE_PUBKEY
+
+creation_rules:
+  - path_regex: secrets/secrets\.yaml$
+    key_groups:
+      - age:
+          - *host
+          - *admin
