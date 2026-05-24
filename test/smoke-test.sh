@@ -55,9 +55,13 @@ assert_not_contains() {
   ! grep -qF -- "$pat" "$f" 2>/dev/null && pass "$label" || fail "$label (bad pattern present: ${pat})"
 }
 
-# Assert valid YAML syntax
+# Assert valid YAML syntax (warns instead of failing if python3 unavailable)
 assert_valid_yaml() {
   local f="$1"
+  if ! command -v python3 &>/dev/null; then
+    warn "$f YAML parse skipped (python3 not in PATH)"
+    return
+  fi
   if python3 -c "import yaml, sys; yaml.safe_load(open('$f'))" 2>/dev/null; then
     pass "$f is valid YAML"
   else
@@ -65,25 +69,30 @@ assert_valid_yaml() {
   fi
 }
 
-# Curl via Caddy with Host header (VM has auto_https off, serving HTTP on port 80)
+# Curl via Caddy on port 443 (VM uses tls internal — self-signed certs).
+# Use --resolve to send the correct SNI so Caddy matches the right vhost and cert.
+# -k skips cert trust check (self-signed CA not in system trust store in VM).
 curl_h() {
   local host="$1" path="$2"
-  curl -sf --connect-timeout 5 -H "Host: ${host}" "http://localhost:80${path}" 2>/dev/null || true
+  curl -sfk --connect-timeout 5 \
+    --resolve "${host}:443:127.0.0.1" \
+    "https://${host}${path}" 2>/dev/null || true
 }
 
 curl_h_status() {
   local host="$1" path="$2"
-  curl -so /dev/null -w "%{http_code}" --connect-timeout 5 \
-    -H "Host: ${host}" "http://localhost:80${path}" 2>/dev/null || echo "000"
+  curl -sk -o /dev/null -w "%{http_code}" --connect-timeout 5 \
+    --resolve "${host}:443:127.0.0.1" \
+    "https://${host}${path}" 2>/dev/null || echo "000"
 }
 
 curl_cors() {
   local host="$1" path="$2" origin="$3"
-  curl -sI --connect-timeout 5 -X OPTIONS \
-    -H "Host: ${host}" \
+  curl -sIk --connect-timeout 5 -X OPTIONS \
     -H "Origin: ${origin}" \
     -H "Access-Control-Request-Method: GET" \
-    "http://localhost:80${path}" 2>/dev/null || true
+    --resolve "${host}:443:127.0.0.1" \
+    "https://${host}${path}" 2>/dev/null || true
 }
 
 # Wait for a service to be active (or return failed status without aborting)
@@ -303,10 +312,14 @@ else
 fi
 
 # ─── HTTP endpoint tests ───────────────────────────────────────────────────────
-section "HTTP endpoints (via Caddy port 80 with Host headers)"
+section "HTTP endpoints (via Caddy port 443 with tls internal + Host headers)"
 
-info "Waiting for Caddy to fully initialize..."
-sleep 3
+info "Warming up Caddy TLS certs (tls internal generates certs on first connection)..."
+for domain in mair.io matrix.mair.io auth.mair.io element.mair.io \
+              chat.mair.io admin.mair.io authelia.mair.io \
+              rtc.mair.io call.mair.io monitoring.mair.io; do
+  curl -sk --connect-timeout 5 --resolve "${domain}:443:127.0.0.1" "https://${domain}/" -o /dev/null 2>/dev/null || true
+done
 
 # Synapse direct health (bypass Caddy)
 syn_health=$(curl -sf --connect-timeout 5 "http://localhost:8008/health" 2>/dev/null || echo "FAIL")
@@ -394,6 +407,54 @@ cors_admin=$(curl_cors "matrix.mair.io" "/_synapse/admin/v1/server_version" "htt
 echo "$cors_admin" | grep -qi "access-control-allow-origin:.*admin.mair.io" \
   && pass "/_synapse/admin: CORS scoped to admin.mair.io (Issue #22)" \
   || warn "/_synapse/admin: CORS header missing or wrong origin (Issue #22 regression)"
+
+# ─── Client app frontends (nginx) ─────────────────────────────────────────────
+section "Client frontends (nginx → Caddy proxy)"
+
+# element.mair.io → nginx on :8765
+element_code=$(curl_h_status "element.mair.io" "/")
+[[ "$element_code" == "200" ]] \
+  && pass "element.mair.io → 200 (Element Web served)" \
+  || fail "element.mair.io → ${element_code} (expected 200)"
+
+# admin.mair.io → nginx on :8767 (404 from Ketesa SPA = nginx is up, routing works)
+admin_code=$(curl_h_status "admin.mair.io" "/")
+[[ "$admin_code" =~ ^(200|404)$ ]] \
+  && pass "admin.mair.io → ${admin_code} (Ketesa nginx responding)" \
+  || fail "admin.mair.io → ${admin_code} (nginx not responding)"
+
+# auth.mair.io/account/* → MAS proxy (502 = MAS down as expected; 000 or 404 = Caddy routing bug)
+account_code=$(curl_h_status "auth.mair.io" "/account/login")
+[[ "$account_code" == "502" ]] \
+  && pass "auth.mair.io/account/* → 502 (proxied to MAS — handle not handle_path)" \
+  || [[ "$account_code" == "200" ]] \
+  && pass "auth.mair.io/account/* → 200 (MAS account portal)" \
+  || fail "auth.mair.io/account/* → ${account_code} (expected 502 or 200, not 000/404)"
+
+# monitoring.mair.io → Grafana on :3000
+grafana_code=$(curl_h_status "monitoring.mair.io" "/api/health")
+[[ "$grafana_code" == "200" ]] \
+  && pass "monitoring.mair.io/api/health → 200 (Grafana via Caddy)" \
+  || fail "monitoring.mair.io/api/health → ${grafana_code} (Grafana not responding)"
+
+# Prometheus internal health (not behind Caddy — internal service)
+prom_code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 5 "http://localhost:9090/-/ready" 2>/dev/null || echo "000")
+[[ "$prom_code" == "200" ]] \
+  && pass "Prometheus :9090/-/ready → 200" \
+  || fail "Prometheus :9090/-/ready → ${prom_code}"
+
+# ─── PostgreSQL peer auth ──────────────────────────────────────────────────────
+section "PostgreSQL peer auth (bridge users connect to their own DB)"
+
+# Each bridge service user must be able to connect via Unix socket peer auth.
+# This verifies the DB name = unix user name = PG user name invariant.
+for bridge in telegram whatsapp signal discord; do
+  if sudo -u "mautrix-${bridge}" psql -d "mautrix-${bridge}" -c "SELECT 1" &>/dev/null; then
+    pass "mautrix-${bridge}: peer auth works (user ↔ DB name match)"
+  else
+    fail "mautrix-${bridge}: peer auth FAILED — DB name or user mismatch"
+  fi
+done
 
 # ─── Bridge health endpoints ───────────────────────────────────────────────────
 section "Bridge health endpoints (expected 200 if bridge started, any non-5xx acceptable)"

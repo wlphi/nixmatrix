@@ -67,14 +67,7 @@ in
 
           # MAS compat endpoints — login/logout/refresh/register go to MAS (port 8080).
           # These MUST be before the catch-all /_matrix/* rule or they'll hit Synapse.
-          @compat path /_matrix/client/v3/login*
-                       /_matrix/client/v3/logout*
-                       /_matrix/client/v3/refresh*
-                       /_matrix/client/v3/register*
-                       /_matrix/client/r0/login*
-                       /_matrix/client/r0/logout*
-                       /_matrix/client/r0/refresh*
-                       /_matrix/client/r0/register*
+          @compat path /_matrix/client/v3/login* /_matrix/client/v3/logout* /_matrix/client/v3/refresh* /_matrix/client/v3/register* /_matrix/client/r0/login* /_matrix/client/r0/logout* /_matrix/client/r0/refresh* /_matrix/client/r0/register*
           handle @compat {
             ${corsHeaders}
             reverse_proxy localhost:8080 {

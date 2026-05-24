@@ -1,6 +1,5 @@
-# Test secrets — age key and sops config are machine-local, gitignored
-# test-secrets.yaml is sops-encrypted and safe to commit
-test/test-age-key.txt
+# test-sops.yaml is machine-local, gitignored
+# test-age-key.txt is committed: it only decrypts dummy test data (not real secrets)
 test/test-sops.yaml
 
 # Never commit unencrypted secrets

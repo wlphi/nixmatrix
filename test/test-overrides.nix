@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ lib, config, ... }:
 
 # VM-only overrides — never import this in production configs.
 # Provides dummy secrets via a test age key so the VM builds and boots
@@ -37,13 +37,22 @@
     ];
   };
 
-  # Disable ACME — no real domain in VM, use plain HTTP
-  services.caddy.globalConfig = lib.mkForce ''
-    auto_https off
-  '';
+  # Use tls internal for all vhosts — Caddy's local CA generates self-signed certs.
+  # Do NOT set auto_https off: that prevents Caddy from wiring up the TLS connection
+  # policies properly, causing TLS internal error even with explicit tls internal per site.
+  # The admin API localhost binding stays from the base caddy.nix globalConfig.
+  services.caddy.virtualHosts = builtins.listToAttrs (map (name: {
+    inherit name;
+    value.extraConfig = lib.mkBefore "tls internal\n";
+  }) [
+    "mair.io" "matrix.mair.io" "auth.mair.io" "element.mair.io"
+    "chat.mair.io" "admin.mair.io" "authelia.mair.io"
+    "rtc.mair.io" "call.mair.io" "monitoring.mair.io"
+  ]);
 
-  # Allow password auth for easy SSH access in VM
+  # Allow password auth + root login for easy SSH access in VM
   services.openssh.settings.PasswordAuthentication = lib.mkForce true;
+  services.openssh.settings.PermitRootLogin = lib.mkForce "yes";
   users.users.root.password = lib.mkForce "root";  # only for VM testing
 
   # Disable the disko module activation in VM (no real disk to partition)
