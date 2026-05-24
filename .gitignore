@@ -9,3 +9,6 @@ secrets/secrets.yaml.plaintext
 # Nix build results
 result
 result-*
+
+# VM disk images
+*.qcow2
