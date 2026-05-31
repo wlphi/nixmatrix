@@ -81,6 +81,14 @@ check "modules/options.nix" \
   "openRegistration" \
   "nixmatrix.openRegistration option exists (defaults to false — admin-only)"
 
+# Optional features are opt-in (default off): SSO, external reverse proxy, TURN.
+check "modules/options.nix" "externalProxy" "nixmatrix.externalProxy option exists"
+check "modules/options.nix" "turn" "nixmatrix.turn option exists (TURN fallback for calls)"
+# TURN config is gated, so livekit.nix must reference the option, not hardcode it.
+check "modules/livekit.nix" \
+  "config.nixmatrix.turn" \
+  "LiveKit TURN wired to nixmatrix.turn (off by default)"
+
 # MAS password hashing scheme
 check "modules/mas.nix" \
   "algorithm: argon2id" \

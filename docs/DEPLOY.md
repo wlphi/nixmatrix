@@ -259,11 +259,22 @@ Read these before relying on the deployment — they cover things the automated 
 test does not (and cannot) exercise:
 
 - **Voice/video calls (Element Call / LiveKit) need a reachable media path.**
-  The UDP range `50100–50200` and TCP `7881` must be open end-to-end. There is
-  **no TURN server** in this stack, so calls will often fail across strict NAT or
-  firewalls. For reliable calls behind NAT you'll need to add a TURN server
-  (e.g. coturn) and point LiveKit at it. On a public VPS with the firewall ports
-  open, direct connectivity usually works; on home/CGNAT networks it may not.
+  The UDP range `50100–50200` and TCP `7881` must be open end-to-end. On a public
+  VPS with those open, direct connectivity usually works. For users behind strict
+  NAT or CGNAT (often the case on home connections), turn on the built-in TURN
+  fallback:
+
+  ```nix
+  # hosts/matrix-server.nix
+  nixmatrix.turn.enable = true;          # opens UDP 3478 + a relay range
+  # nixmatrix.turn.udpPort   = 3478;     # set to 443 (external-proxy mode only) for the
+  #                                      # best chance through restrictive firewalls
+  # nixmatrix.turn.relayRange = "30000-31000";
+  ```
+
+  This uses LiveKit's own TURN server — no extra service to run. The TURN UDP
+  port and relay range are opened in the firewall automatically. (Setting
+  `udpPort = 443` only works when Caddy isn't using 443, i.e. external-proxy mode.)
 - **Federation.** Caddy serves Matrix on `:443` and `.well-known` delegation
   points peers there; port `8448` is also opened for servers that connect
   directly. After deploying, confirm with

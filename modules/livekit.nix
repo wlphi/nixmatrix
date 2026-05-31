@@ -20,6 +20,24 @@ let
   livekitVersion = "v1.7.2";
   # Check: https://github.com/element-hq/lk-jwt-service/releases
   lkJwtVersion = "v0.2.1";
+
+  turn = config.nixmatrix.turn;
+  # relayRange is "start-end"; split it for the LiveKit config keys.
+  relayParts = lib.splitString "-" turn.relayRange;
+  relayStart = lib.elemAt relayParts 0;
+  relayEnd = lib.elemAt relayParts 1;
+
+  # Built-in TURN server, on only when nixmatrix.turn.enable is set. TURN/UDP
+  # needs no certificate; clients reach it on turn.udpPort and media is relayed
+  # to the SFU through relayRange. domain just needs to resolve to this host.
+  turnConfig = lib.optionalString turn.enable ''
+    turn:
+      enabled: true
+      domain: rtc.${domain}
+      udp_port: ${toString turn.udpPort}
+      relay_range_start: ${relayStart}
+      relay_range_end: ${relayEnd}
+  '';
 in
 
 {
@@ -50,7 +68,7 @@ in
       logging:
         json: true
         level: info
-    '';
+    '' + turnConfig;
     path = "/var/lib/livekit/config.yaml";
     mode = "0644";
   };
@@ -58,6 +76,16 @@ in
   systemd.tmpfiles.rules = [
     "d /var/lib/livekit 0755 root root -"
   ];
+
+  # Open the TURN ports to the internet when TURN is enabled. (The base media
+  # ports — TCP 7881, UDP 50100–50200 — are opened in hosts/matrix-server.nix.)
+  networking.firewall = lib.mkIf turn.enable {
+    allowedUDPPorts = [ turn.udpPort ];
+    allowedUDPPortRanges = [{
+      from = lib.toInt relayStart;
+      to = lib.toInt relayEnd;
+    }];
+  };
 
   virtualisation.oci-containers.containers = {
 
@@ -67,6 +95,10 @@ in
         "127.0.0.1:7880:7880"  # HTTP / admin (internal only)
         "0.0.0.0:7881:7881"    # WebRTC TCP fallback (public — firewall opens this)
         "0.0.0.0:50100-50200:50100-50200/udp"  # RTP media
+      ] ++ lib.optionals turn.enable [
+        # TURN server (public) — only when nixmatrix.turn.enable is set.
+        "0.0.0.0:${toString turn.udpPort}:${toString turn.udpPort}/udp"  # TURN listener
+        "0.0.0.0:${relayStart}-${relayEnd}:${relayStart}-${relayEnd}/udp"  # TURN relay → SFU
       ];
       volumes = [
         "${config.sops.templates."livekit-config".path}:/config.yaml:ro"

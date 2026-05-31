@@ -59,6 +59,44 @@
       };
     };
 
+    turn = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Enable LiveKit's built-in TURN server so voice/video calls work for
+          users behind strict NAT or firewalls.
+
+          Without it, calls rely on a direct media path and can silently fail on
+          home/CGNAT connections. With it, those clients fall back through TURN.
+
+          Requires `turn.udpPort` reachable from the internet. Calls also still
+          need the existing media ports open (TCP 7881, UDP 50100–50200).
+          Only takes effect when Element Call (LiveKit) is in use.
+        '';
+      };
+      udpPort = lib.mkOption {
+        type = lib.types.port;
+        default = 3478;
+        description = ''
+          UDP port for the TURN server. 3478 is the standard TURN port. Setting
+          it to 443 maximises the chance of getting through restrictive
+          firewalls, but only do that in external-proxy mode where Caddy isn't
+          already using 443. This port must be open to the internet.
+        '';
+      };
+      relayRange = lib.mkOption {
+        type = lib.types.str;
+        default = "30000-31000";
+        example = "30000-31000";
+        description = ''
+          UDP port range (start-end) TURN uses to relay media to the SFU. Must
+          be open to the internet. Kept small by default; widen it for many
+          concurrent calls.
+        '';
+      };
+    };
+
     openRegistration = lib.mkOption {
       type = lib.types.bool;
       default = false;

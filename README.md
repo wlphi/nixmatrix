@@ -129,9 +129,10 @@ starting; each enabled bridge registers itself with Synapse automatically.
 Other optional toggles (all default off, set in the same file):
 
 ```nix
-nixmatrix.openRegistration    = true;   # public self-signup (else admin-only)
-nixmatrix.sso.enable          = true;   # Authelia SSO in front of MAS
+nixmatrix.openRegistration     = true;  # public self-signup (else admin-only)
+nixmatrix.sso.enable           = true;  # Authelia SSO in front of MAS
 nixmatrix.externalProxy.enable = true;  # sit behind your own nginx/Apache (see docs)
+nixmatrix.turn.enable          = true;  # TURN fallback so calls work behind strict NAT
 ```
 
 Already run nginx or Apache? nixMatrix can sit behind it — see
@@ -174,9 +175,10 @@ What it hasn't done yet:
   and throwaway secrets, so it doesn't prove real Let's Encrypt certificates or
   federation with other Matrix servers. Your first deploy is the real test —
   please report how it goes.
-- **Calls behind difficult networks.** Voice/video works on a normal VPS but has no
-  TURN server, so it can fail on home/CGNAT connections (see
-  [docs/DEPLOY.md](docs/DEPLOY.md#9-known-limitations--caveats)).
+- **Calls behind difficult networks.** Voice/video works on a normal VPS out of
+  the box; for users behind strict NAT/CGNAT, enable the built-in TURN fallback
+  (`nixmatrix.turn.enable`). Untested across every network type — see
+  [docs/DEPLOY.md](docs/DEPLOY.md#9-known-limitations--caveats).
 - **Bridges end-to-end.** They're off by default and you enable the ones you want;
   bridge encryption is intentionally disabled (it isn't compatible with MAS yet).
 - **Slack and IRC bridges** aren't implemented yet.
