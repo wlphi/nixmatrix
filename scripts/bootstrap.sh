@@ -191,12 +191,18 @@ if [[ "$SKIP_GEN" != "1" ]]; then
   RSA_KEY=""
   RSA_KEY="$(openssl genrsa 4096 2>/dev/null | openssl pkcs8 -topk8 -nocrypt 2>/dev/null)"
 
+  # Authelia's OIDC issuer needs its own RSA key (the module derives jwks from it).
+  OIDC_RSA_KEY=""
+  OIDC_RSA_KEY="$(openssl genrsa 4096 2>/dev/null | openssl pkcs8 -topk8 -nocrypt 2>/dev/null)"
+
   echo "  Telegram bridge needs API credentials from https://my.telegram.org"
   echo "  (leave blank to fill in later — the bridge just won't start until set)."
   TG_ID="$(ask "telegram_api_id (numeric)" "0")"
   TG_HASH="$(ask "telegram_api_hash" "REPLACE_ME")"
 
-  PLAIN="secrets/secrets.yaml.plaintext"
+  # Write the plaintext to the FINAL filename and encrypt in place. sops matches
+  # creation_rules against the file path, and .sops.yaml anchors on
+  # secrets/secrets.yaml$ — a *.plaintext suffix would not match.
   {
     echo "matrix:"
     echo "    postgres_password: $(hex)"
@@ -213,6 +219,9 @@ if [[ "$SKIP_GEN" != "1" ]]; then
     echo "    jwt_secret: $(hex)"
     echo "    session_secret: $(hex)"
     echo "    storage_encryption_key: $(hex)"
+    echo "    oidc_hmac_secret: $(hex)"
+    echo "    oidc_issuer_private_key: |"
+    echo "$OIDC_RSA_KEY" | sed 's/^/        /'
     echo "    oidc_client_secret: $(hex)"
     echo ""
     echo "bridges:"
@@ -220,10 +229,9 @@ if [[ "$SKIP_GEN" != "1" ]]; then
     echo "    doublepuppet_hs_token: $(hex)"
     echo "    telegram_api_id: \"${TG_ID}\""
     echo "    telegram_api_hash: ${TG_HASH}"
-  } > "$PLAIN"
+  } > secrets/secrets.yaml
 
-  SOPS_AGE_KEY_FILE="$ADMIN_KEY_FILE" sops --encrypt "$PLAIN" > secrets/secrets.yaml
-  rm -f "$PLAIN"
+  SOPS_AGE_KEY_FILE="$ADMIN_KEY_FILE" sops --encrypt --in-place secrets/secrets.yaml
   ok "Generated and encrypted secrets/secrets.yaml"
 fi
 
