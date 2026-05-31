@@ -19,7 +19,7 @@ let
   autheliaPort = 9091;
 in
 
-{
+lib.mkIf config.nixmatrix.sso.enable {
   sops.secrets = {
     "authelia/jwt_secret"              = { owner = "authelia-main"; };
     "authelia/session_secret"          = { owner = "authelia-main"; };

@@ -14,7 +14,7 @@
 #   50100-50200/udp — RTP media
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   # Pin specific versions — never use :latest (breaks reproducibility silently)
   # Check for new versions: https://github.com/livekit/livekit/releases
   livekitVersion = "v1.7.2";

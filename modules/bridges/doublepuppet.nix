@@ -12,7 +12,7 @@
 # Synapse reads it on startup via app_service_config_files (set in synapse.nix).
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
 in
 
 {

@@ -196,13 +196,6 @@ in
         '';
       };
 
-      # ── authelia.mair.io — Authelia SSO ──────────────────────────────────
-      "authelia.${domain}" = {
-        extraConfig = ''
-          reverse_proxy localhost:9091
-        '';
-      };
-
       # ── rtc.mair.io — LiveKit + lk-jwt-service ────────────────────────────
       "rtc.${domain}" = {
         extraConfig = ''
@@ -226,6 +219,14 @@ in
       "monitoring.${domain}" = {
         extraConfig = ''
           reverse_proxy localhost:3000
+        '';
+      };
+    }
+    # authelia.<domain> — only when SSO is enabled (nixmatrix.sso.enable).
+    // lib.optionalAttrs config.nixmatrix.sso.enable {
+      "authelia.${domain}" = {
+        extraConfig = ''
+          reverse_proxy localhost:9091
         '';
       };
     };

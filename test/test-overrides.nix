@@ -26,6 +26,10 @@
     mode = "0400";
   };
 
+  # Exercise the optional SSO path in the integration test (it's off by default
+  # in production). The test asserts authelia-main starts cleanly with NRestarts=0.
+  nixmatrix.sso.enable = true;
+
   # VM resource sizing
   virtualisation.vmVariant.virtualisation = {
     memorySize = 4096;

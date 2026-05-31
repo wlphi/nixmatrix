@@ -25,6 +25,9 @@
       22    # SSH
       80    # Caddy HTTP (redirects to 443)
       443   # Caddy HTTPS
+      8448  # Matrix federation (some servers connect here directly, bypassing
+            # well-known delegation). Caddy listens on 443; 8448 is opened so
+            # federation still works for peers that don't honour delegation.
       7881  # LiveKit WebRTC TCP fallback
     ];
     allowedUDPPortRanges = [

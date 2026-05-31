@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   elementPort = 8765;
   fluffychatPort = 8766;
   ketesaPort = 8767;

@@ -5,13 +5,45 @@
 # Uses pkgs.matrix-authentication-service (1.16+ in nixpkgs unstable).
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   authDomain = "auth.${domain}";
   masUser = "mas";
   masGroup = "mas";
   masDataDir = "/var/lib/matrix-authentication-service";
   # sops template writes the config here at runtime
   masConfigPath = config.sops.templates."mas-config".path;
+
+  # Authelia upstream OIDC — only wired in when SSO is enabled (nixmatrix.sso.enable).
+  # When off, MAS uses its own native login and never references Authelia (whose
+  # service + secrets don't exist in that case).
+  upstreamOAuth2Block =
+    if config.nixmatrix.sso.enable then ''
+
+      # Authelia upstream OIDC (Phase 3).
+      # IMPORTANT: http://localhost for discovery_url — HTTPS to co-hosted Authelia fails on self-signed certs.
+      # IMPORTANT: fetch_userinfo: true — Authelia doesn't embed claims in the token.
+      upstream_oauth2:
+        providers:
+          - id: "01HQW90Z35CMXFJWQPHC3BGZGA"
+            issuer: "https://authelia.${domain}"
+            discovery_url: "http://localhost:9091/.well-known/openid-configuration"
+            client_id: "mas-client"
+            client_secret: "${config.sops.placeholder."authelia/oidc_client_secret"}"
+            scope: "openid profile email offline_access"
+            token_endpoint_auth_method: "client_secret_basic"
+            fetch_userinfo: true
+            claims_imports:
+              localpart:
+                action: force
+                template: "{{ user.preferred_username }}"
+              displayname:
+                action: suggest
+                template: "{{ user.name }}"
+              email:
+                action: force
+                template: "{{ user.email }}"
+                set_email_verification: always
+    '' else "";
 in
 
 {
@@ -150,31 +182,7 @@ in
         - client_id: "0000000000000000000SYNAPSE"
           client_auth_method: client_secret_basic
           client_secret: "${config.sops.placeholder."matrix/synapse_client_secret"}"
-
-      # Authelia upstream OIDC (Phase 3).
-      # IMPORTANT: http://localhost for discovery_url — HTTPS to co-hosted Authelia fails on self-signed certs.
-      # IMPORTANT: fetch_userinfo: true — Authelia doesn't embed claims in the token.
-      upstream_oauth2:
-        providers:
-          - id: "01HQW90Z35CMXFJWQPHC3BGZGA"
-            issuer: "https://authelia.${domain}"
-            discovery_url: "http://localhost:9091/.well-known/openid-configuration"
-            client_id: "mas-client"
-            client_secret: "${config.sops.placeholder."authelia/oidc_client_secret"}"
-            scope: "openid profile email offline_access"
-            token_endpoint_auth_method: "client_secret_basic"
-            fetch_userinfo: true
-            claims_imports:
-              localpart:
-                action: force
-                template: "{{ user.preferred_username }}"
-              displayname:
-                action: suggest
-                template: "{{ user.name }}"
-              email:
-                action: force
-                template: "{{ user.email }}"
-                set_email_verification: always
+      ${upstreamOAuth2Block}
     '';
     owner = masUser;
     group = masGroup;

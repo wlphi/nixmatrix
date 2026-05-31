@@ -22,6 +22,7 @@ working federated Matrix homeserver.
 6. [Post-install](#6-post-install)
 7. [Day-2: updates, secrets, backups](#7-day-2-operations)
 8. [Troubleshooting](#8-troubleshooting)
+9. [Known limitations & caveats](#9-known-limitations--caveats)
 
 ---
 
@@ -227,5 +228,33 @@ admin age key — losing the key means losing access to the secrets.
 Locked out over SSH? Password auth is disabled by design — you must have set
 `users.users.root.openssh.authorizedKeys.keys` before deploying. If you missed it,
 use your provider's console/recovery to add a key, or re-run the deploy.
+
+## 9. Known limitations & caveats
+
+Read these before relying on the deployment — they cover things the automated VM
+test does not (and cannot) exercise:
+
+- **Voice/video calls (Element Call / LiveKit) need a reachable media path.**
+  The UDP range `50100–50200` and TCP `7881` must be open end-to-end. There is
+  **no TURN server** in this stack, so calls will often fail across strict NAT or
+  firewalls. For reliable calls behind NAT you'll need to add a TURN server
+  (e.g. coturn) and point LiveKit at it. On a public VPS with the firewall ports
+  open, direct connectivity usually works; on home/CGNAT networks it may not.
+- **Federation.** Caddy serves Matrix on `:443` and `.well-known` delegation
+  points peers there; port `8448` is also opened for servers that connect
+  directly. After deploying, confirm with
+  `https://federationtester.matrix.org/#example.com`. If it fails, the usual
+  cause is DNS or the `.well-known/matrix/server` response.
+- **SSO (Authelia) is off by default** (`nixmatrix.sso.enable`). When you turn it
+  on, it ships a single example account `admin` / `changeme` in
+  `/var/lib/authelia-main/users.yaml`. **Change that password immediately**
+  (`authelia crypto hash generate argon2 --password '…'`) and add real users.
+- **Bridges are opt-in** (`nixmatrix.bridges.<net>.enable`) and bridge E2E
+  encryption is intentionally disabled (MSC4190 is incompatible with MAS today).
+- **First real deploy is your acceptance test.** The VM test uses self-signed
+  TLS and dummy secrets; it does not prove real Let's Encrypt issuance, real
+  federation, or real client login. Treat your first VPS deploy as a smoke test:
+  run `./test/smoke-test.sh root@<SERVER_IP>`, create a user, log in via Element,
+  and check the federation tester before inviting anyone else.
 
 For deeper internals and a table of subtle fixes, see [NIXOS_PLAN.md](../NIXOS_PLAN.md).

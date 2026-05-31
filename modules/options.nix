@@ -31,6 +31,23 @@
       '';
     };
 
+    sso.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Enable Authelia as an upstream SSO / OIDC identity provider for MAS.
+
+        OFF by default: a fresh deploy runs Synapse + MAS (with MAS's own native
+        login) + clients, with no SSO layer. Turn this on only if you want users
+        to authenticate through Authelia instead.
+
+        When enabled, Authelia ships with a single example account
+        (admin / changeme) seeded into /var/lib/authelia-main/users.yaml —
+        CHANGE that password before exposing it. MAS is wired to Authelia as an
+        upstream OIDC provider automatically.
+      '';
+    };
+
     bridges = lib.mkOption {
       description = ''
         Which mautrix bridges to enable. All default to OFF — enable only the

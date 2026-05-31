@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   matrixDomain = "matrix.${domain}";
   authDomain = "auth.${domain}";
   adminDomain = "admin.${domain}";
@@ -47,7 +47,7 @@ in
     ];
 
     settings = {
-      server_name = domain;  # "mair.io" — Matrix IDs are @user:mair.io
+      server_name = domain;  # Matrix IDs are @user:<domain>
       public_baseurl = "https://${matrixDomain}";
 
       # Listeners: HTTP (Caddy-proxied) + metrics (Prometheus, internal only)
