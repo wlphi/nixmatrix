@@ -270,18 +270,23 @@ cat <<EOF
 
   Next steps:
 
-  ${BOLD}1. Point DNS at your server${NC} (A/AAAA records). At minimum:
-       ${DOMAIN}, matrix.${DOMAIN}, auth.${DOMAIN}, element.${DOMAIN}
-     See docs/DEPLOY.md for the full list.
+  ${BOLD}1. Point DNS at your server${NC} (A records). Easiest is a wildcard:
+       *.${DOMAIN}  → <SERVER_IP>     plus apex  ${DOMAIN} → <SERVER_IP>
+     (covers matrix./auth./element./chat./admin./rtc./call./monitoring.)
 
-  ${BOLD}2. Sanity-check the config:${NC}
+  ${BOLD}2. Pre-flight check${NC} (DNS, ports, server specs — guides you to what's
+     not ready yet):
+       ./scripts/preflight.sh USER@<SERVER_IP>
+     and the static config check:
        ./test/check-nix.sh
 
   ${BOLD}3. Deploy${NC} (reinstalls the target as NixOS — backup first!):
        nix run github:numtide/nixos-anywhere -- \\
          --flake .#matrix-server \\
+         --target-host USER@<SERVER_IP> \\
          --extra-files ${EXTRA_FILES_DIR} \\
-         root@<SERVER_IP>
+         -i ~/.ssh/id_rsa \\
+         --force-kexec
 
   ${BOLD}4. Later config changes:${NC}
        nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>

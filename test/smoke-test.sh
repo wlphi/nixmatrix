@@ -479,6 +479,25 @@ for bridge in telegram whatsapp signal discord; do
   fi
 done
 
+# ─── Cloud metadata / DNS health ───────────────────────────────────────────────
+# On cloud VMs the metadata+DNS service is at 169.254.169.254. A container bridge
+# grabbing 169.254.0.0/16 hijacks it and breaks DNS host-wide. Catch that here.
+section "DNS / cloud metadata"
+if getent hosts cache.nixos.org >/dev/null 2>&1; then
+  pass "host DNS resolves (cache.nixos.org)"
+else
+  fail "host cannot resolve DNS — likely a 169.254.0.0/16 route hijacking the metadata server"
+fi
+# If a metadata server is in use, its /32 route should NOT point at a container veth.
+if ip route get 169.254.169.254 >/dev/null 2>&1; then
+  mdev=$(ip -o route get 169.254.169.254 2>/dev/null | grep -oE 'dev [^ ]+' | awk '{print $2}')
+  case "$mdev" in
+    veth*|podman*|cni*|br-*) fail "169.254.169.254 routed via container iface '$mdev' (metadata/DNS hijack)" ;;
+    "") warn "could not determine route to 169.254.169.254" ;;
+    *) pass "169.254.169.254 routed via '$mdev' (not a container interface)" ;;
+  esac
+fi
+
 # ─── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"

@@ -100,5 +100,41 @@
     defaultNetwork.settings.dns_enabled = true;
   };
 
+  # ── Cloud metadata / DNS protection ───────────────────────────────────────
+  # CRITICAL on cloud VMs (GCP, AWS, Azure, Hetzner Cloud, …): the metadata and
+  # DNS service lives at the link-local address 169.254.169.254. When podman
+  # starts containers, dhcpcd hands their veth interfaces IPv4 link-local
+  # (169.254.0.0/16) addresses, which install a 169.254.0.0/16 route that
+  # HIJACKS the metadata IP onto the container bridge — DNS then dies host-wide
+  # once containers run. Two guards:
+  #   1. tell dhcpcd not to auto-assign link-local addresses, and
+  #   2. pin an explicit /32 route to the metadata server via the real gateway,
+  #      so it always wins regardless of any link-local route.
+  networking.dhcpcd.extraConfig = ''
+    noipv4ll
+  '';
+  # The metadata IP is reached via the default gateway on the primary interface.
+  # 169.254.169.254 is the universal cloud metadata address; routing it over the
+  # default route keeps DNS working even if a link-local /16 route reappears.
+  systemd.services.pin-metadata-route = {
+    description = "Pin a host route to the cloud metadata server (169.254.169.254)";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    # Route via the interface that owns the default route; harmless if it already exists.
+    script = ''
+      dev=$(${pkgs.iproute2}/bin/ip -o route show default | ${pkgs.gawk}/bin/awk '{print $5; exit}')
+      gw=$(${pkgs.iproute2}/bin/ip -o route show default | ${pkgs.gawk}/bin/awk '{print $3; exit}')
+      if [ -n "$dev" ] && [ -n "$gw" ]; then
+        ${pkgs.iproute2}/bin/ip route replace 169.254.169.254/32 via "$gw" dev "$dev" || \
+        ${pkgs.iproute2}/bin/ip route replace 169.254.169.254/32 dev "$dev"
+      fi
+    '';
+  };
+
   system.stateVersion = "25.11";
 }
