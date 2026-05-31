@@ -137,7 +137,21 @@ if ! $SSH "$TARGET" true 2>/dev/null; then
   hint "test manually: ssh $TARGET"
 else
   ok "SSH login works"
-  facts="$($SSH "$TARGET" 'echo "ARCH=$(uname -m)"; echo "MEMKB=$(awk "/MemTotal/{print \$2}" /proc/meminfo)"; echo "DISKGB=$(lsblk -bdno SIZE 2>/dev/null | sort -rn | head -1 | awk "{printf \"%d\", \$1/1000000000}")"; echo "EFI=$([ -d /sys/firmware/efi ] && echo yes || echo no)"; echo "SUDO=$(sudo -n true 2>/dev/null && echo yes || echo no)"; echo "ID=$(. /etc/os-release 2>/dev/null; echo $ID)"' 2>/dev/null)"
+  # Gather all facts in ONE call (avoids opening several connections, which some
+  # clouds rate-limit). Retry up to 3× — a flaky path can drop a call, and we
+  # must NOT mistake an empty result for "arch unknown / 0 GB RAM / no sudo".
+  facts=""
+  for _try in 1 2 3; do
+    facts="$($SSH "$TARGET" 'echo "ARCH=$(uname -m)"; echo "MEMKB=$(awk "/MemTotal/{print \$2}" /proc/meminfo)"; echo "DISKGB=$(lsblk -bdno SIZE 2>/dev/null | sort -rn | head -1 | awk "{printf \"%d\", \$1/1000000000}")"; echo "EFI=$([ -d /sys/firmware/efi ] && echo yes || echo no)"; echo "SUDO=$(sudo -n true 2>/dev/null && echo yes || echo no)"; echo "ID=$(. /etc/os-release 2>/dev/null; echo $ID)"; echo FACTS_OK' 2>/dev/null)"
+    [[ "$facts" == *FACTS_OK* ]] && break
+    sleep 5
+  done
+
+  if [[ "$facts" != *FACTS_OK* ]]; then
+    warn "could not read server details (connection dropped mid-command)"
+    hint "your path to the host may be flaky/rate-limited; re-run, or check over a stable link."
+    hint "skipping arch/RAM/disk/sudo checks — verify them manually before deploying."
+  else
   eval "$facts" 2>/dev/null
 
   case "${ARCH:-}" in
@@ -158,6 +172,7 @@ else
   [[ "${SUDO:-}" == "yes" ]] && ok "Root/sudo available" || bad "no passwordless sudo (nixos-anywhere needs root)"
   [[ "${EFI:-}" == "yes" ]] && ok "UEFI boot" || warn "BIOS boot (config assumes UEFI; review modules/disk.nix)"
   [[ -n "${ID:-}" ]] && ok "Current OS: ${ID} (will be ERASED and replaced with NixOS)"
+  fi
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
@@ -165,8 +180,8 @@ echo
 echo "${BOLD}═══════════════════════════════════════${NC}"
 if (( FAILS == 0 )); then
   echo "${GREEN}${BOLD}Ready to deploy.${NC} ${WARNS} warning(s)."
-  echo "Next: nix run github:numtide/nixos-anywhere -- --flake .#matrix-server \\"
-  echo "        --target-host $TARGET --extra-files .bootstrap/extra-files -i ~/.ssh/id_rsa --force-kexec"
+  echo "Next: nix run github:nix-community/nixos-anywhere -- --flake .#matrix-server \\"
+  echo "        --target-host $TARGET --extra-files .bootstrap/extra-files -i ~/.ssh/id_rsa"
 else
   echo "${RED}${BOLD}${FAILS} blocker(s)${NC} and ${WARNS} warning(s) — fix the ✗ items above first."
 fi

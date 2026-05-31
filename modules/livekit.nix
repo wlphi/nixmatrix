@@ -19,7 +19,10 @@ let
   # Check for new versions: https://github.com/livekit/livekit/releases
   livekitVersion = "v1.7.2";
   # Check: https://github.com/element-hq/lk-jwt-service/releases
-  lkJwtVersion = "v0.2.1";
+  # NB: the ghcr image tags have NO leading "v" (e.g. 0.4.4, not v0.4.4) and the
+  # git release tags (vX.Y.Z) are NOT published as image tags — using a "v"
+  # prefix here yields "manifest unknown" at pull time.
+  lkJwtVersion = "0.4.4";
 
   turn = config.nixmatrix.turn;
   # relayRange is "start-end"; split it for the LiveKit config keys.

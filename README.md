@@ -72,7 +72,9 @@ git clone <this-repo> nixmatrix && cd nixmatrix
 ./scripts/bootstrap.sh
 
 # 2. Review the generated config, then deploy to your server.
-nix run github:numtide/nixos-anywhere -- --flake .#matrix-server root@<SERVER_IP>
+nix run github:nix-community/nixos-anywhere -- \
+  --flake .#matrix-server --target-host root@<SERVER_IP> \
+  --extra-files .bootstrap/extra-files -i ~/.ssh/id_rsa
 ```
 
 The bootstrap script walks you through everything interactively. For the full

@@ -65,7 +65,6 @@ fi
 # Write plaintext template with dummy hex values (valid format for all services)
 DUMMY_HEX=$(openssl rand -hex 32)
 DUMMY_HEX2=$(openssl rand -hex 32)
-DUMMY_HEX4=$(openssl rand -hex 32)
 DUMMY_HEX5=$(openssl rand -hex 32)
 DUMMY_HEX6=$(openssl rand -hex 32)
 DUMMY_HEX7=$(openssl rand -hex 32)
@@ -91,7 +90,6 @@ matrix:
     mas_secret_key: ${DUMMY_HEX2}
     mas_signing_key: |
 $(echo "$DUMMY_RSA_KEY" | sed 's/^/        /')
-    synapse_shared_secret: ${DUMMY_HEX4}
     synapse_client_secret: ${DUMMY_HEX5}
     synapse_admin_token: ${DUMMY_HEX6}
     livekit_secret: ${DUMMY_HEX7}

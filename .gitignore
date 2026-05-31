@@ -6,6 +6,12 @@ test/test-sops.yaml
 secrets/secrets.yaml.plaintext
 *.plaintext
 
+# bootstrap.sh output — holds the unencrypted host age key + extra-files
+.bootstrap/
+
+# local Claude Code session/config
+.claude/
+
 # Nix build results
 result
 result-*

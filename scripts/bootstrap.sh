@@ -238,7 +238,6 @@ if [[ "$SKIP_GEN" != "1" ]]; then
     echo "    mas_secret_key: $(hex)"
     echo "    mas_signing_key: |"
     echo "$RSA_KEY" | sed 's/^/        /'
-    echo "    synapse_shared_secret: $(hex)"
     echo "    synapse_client_secret: $(hex)"
     echo "    synapse_admin_token: $(hex)"
     echo "    livekit_secret: $(hex)"
@@ -281,12 +280,11 @@ cat <<EOF
        ./test/check-nix.sh
 
   ${BOLD}3. Deploy${NC} (reinstalls the target as NixOS — backup first!):
-       nix run github:numtide/nixos-anywhere -- \\
+       nix run github:nix-community/nixos-anywhere -- \\
          --flake .#matrix-server \\
          --target-host USER@<SERVER_IP> \\
          --extra-files ${EXTRA_FILES_DIR} \\
-         -i ~/.ssh/id_rsa \\
-         --force-kexec
+         -i ~/.ssh/id_rsa
 
   ${BOLD}4. Later config changes:${NC}
        nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>

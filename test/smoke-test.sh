@@ -137,7 +137,7 @@ section "Sops secrets decrypted"
 
 SECRETS="/run/secrets"
 for secret in matrix/postgres_password matrix/mas_secret_key matrix/mas_signing_key \
-              matrix/synapse_shared_secret matrix/synapse_client_secret \
+              matrix/synapse_admin_token matrix/synapse_client_secret \
               authelia/jwt_secret bridges/doublepuppet_as_token bridges/doublepuppet_hs_token \
               bridges/telegram_api_id bridges/telegram_api_hash matrix/grafana_secret_key; do
   [[ -f "${SECRETS}/${secret}" ]] \

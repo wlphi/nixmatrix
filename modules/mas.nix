@@ -67,7 +67,6 @@ in
     # These are only used as sops template placeholders — declaring once here so the
     # placeholder map is populated; they DON'T also appear in synapse.nix or authelia.nix
     "matrix/mas_secret_key"        = { owner = masUser; };
-    "matrix/synapse_shared_secret" = { owner = masUser; };
     # matrix/postgres_password is owned by postgres (postgres.nix) — used here via placeholder
     # matrix/synapse_client_secret is owned by matrix-synapse (synapse.nix) — used here via placeholder
     # authelia/oidc_client_secret is owned by authelia-main (authelia.nix) — used here via placeholder
@@ -115,7 +114,11 @@ in
       matrix:
         homeserver: "${domain}"
         endpoint: "http://localhost:8008"
-        secret: "${config.sops.placeholder."matrix/synapse_shared_secret"}"
+        # MUST equal Synapse's msc3861.admin_token (synapse.nix) — MAS presents this
+        # when calling Synapse's /_synapse/mas/* admin endpoints. A mismatch makes
+        # Synapse reject every MAS admin call with 403 "must only be called by MAS",
+        # which breaks user registration (mas-cli) and login.
+        secret: "${config.sops.placeholder."matrix/synapse_admin_token"}"
 
       passwords:
         enabled: true

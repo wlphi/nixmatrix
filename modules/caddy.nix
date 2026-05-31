@@ -137,6 +137,17 @@ in
         '';
       };
 
+      # ── matrix.example.com:8448 — direct Matrix federation port ──────────────
+      # Most servers discover us via /.well-known/matrix/server → matrix.<domain>:443.
+      # Some peers ignore delegation and connect to the traditional federation port
+      # 8448 directly; hosts/matrix-server.nix opens it in the firewall, so we must
+      # actually serve federation there. Caddy reuses the matrix.<domain> TLS cert.
+      "matrix.${domain}:8448" = {
+        extraConfig = ''
+          reverse_proxy 127.0.0.1:8008
+        '';
+      };
+
       # ── auth.example.com — Matrix Authentication Service ─────────────────────
       "auth.${domain}" = {
         extraConfig = ''

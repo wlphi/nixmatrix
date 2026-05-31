@@ -152,10 +152,11 @@ nix build .#checks.x86_64-linux.integration -L
 ## 5. Deploy
 
 ```bash
-nix run github:numtide/nixos-anywhere -- \
+nix run github:nix-community/nixos-anywhere -- \
   --flake .#matrix-server \
+  --target-host root@<SERVER_IP> \
   --extra-files .bootstrap/extra-files \
-  root@<SERVER_IP>
+  -i ~/.ssh/id_rsa
 ```
 
 `--extra-files` seeds the host age key at `/etc/age/key.txt` so sops-nix can decrypt
