@@ -186,9 +186,13 @@ in
     after = [
       "network.target"
       "postgresql.service"
+      # Must wait for the DB password to actually be set, or the first start
+      # races ahead and fails with "password authentication failed for user mas"
+      # (it recovers on restart, but a clean boot should have zero failures).
+      "postgresql-set-passwords.service"
       "sops-install-secrets.service"
     ];
-    requires = [ "postgresql.service" ];
+    requires = [ "postgresql.service" "postgresql-set-passwords.service" ];
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {

@@ -70,8 +70,8 @@
       server = {
         http_addr = "127.0.0.1";
         http_port = 3000;
-        domain = "monitoring.mair.io";
-        root_url = "https://monitoring.mair.io";
+        domain = "monitoring.${config.nixmatrix.domain}";
+        root_url = "https://monitoring.${config.nixmatrix.domain}";
       };
       security = {
         admin_user = "admin";

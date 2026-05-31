@@ -2,6 +2,9 @@
 
 {
   imports = [
+    # Central config options (nixmatrix.domain, etc.)
+    ./options.nix
+
     # Core services (Phase 1)
     ./postgres.nix
     ./redis.nix

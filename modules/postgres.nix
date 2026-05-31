@@ -72,15 +72,24 @@
           escaped=$(printf '%s' "$password" | sed 's/\x27/\x27\x27/g')
           psql -v ON_ERROR_STOP=1 -c "ALTER USER $user WITH ENCRYPTED PASSWORD '$escaped';"
         }
-        set_password synapse ${lib.escapeShellArg config.sops.secrets."matrix/postgres_password".path}
-        set_password mas     ${lib.escapeShellArg config.sops.secrets."matrix/postgres_password".path}
+        set_password synapse  ${lib.escapeShellArg config.sops.secrets."matrix/postgres_password".path}
+        set_password mas      ${lib.escapeShellArg config.sops.secrets."matrix/postgres_password".path}
+        # Authelia connects over TCP (scram-sha-256), so it needs a password too.
+        # It reads the same matrix/postgres_password (via authelia-pg-password template).
+        set_password authelia ${lib.escapeShellArg config.sops.secrets."matrix/postgres_password".path}
       '';
     in
     {
       description = "Set PostgreSQL user passwords from sops secrets";
-      after = [ "postgresql.service" "sops-install-secrets.service" ];
-      requires = [ "postgresql.service" ];
+      # MUST run after postgresql-setup, which is what creates the roles
+      # (ensureUsers). Ordering only after postgresql.service races ahead of
+      # role creation → "role \"synapse\" does not exist".
+      after = [ "postgresql.service" "postgresql-setup.service" "sops-install-secrets.service" ];
+      requires = [ "postgresql.service" "postgresql-setup.service" ];
       wantedBy = [ "multi-user.target" ];
+      # psql must be on PATH — without this the script exits 127 and the
+      # synapse/mas DB passwords are never set, so both crash-loop on auth.
+      path = [ config.services.postgresql.package ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;

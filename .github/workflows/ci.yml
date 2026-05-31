@@ -1,0 +1,129 @@
+name: CI
+
+# Runs on every push and PR, plus a weekly scheduled run (to catch upstream
+# nixpkgs drift) and a manual trigger.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Fast lane: static config checks + flake evaluation ──────────────────────
+  # No heavy builds — just parses, lints, the project's own check-nix.sh, and a
+  # full evaluation of every flake output. Catches the vast majority of breakage
+  # in a couple of minutes.
+  static-checks:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix (flakes enabled)
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Check flake.lock health
+        uses: DeterminateSystems/flake-checker-action@main
+
+      - name: Provide age, sops, openssl
+        run: nix profile install nixpkgs#age nixpkgs#sops nixpkgs#openssl
+
+      - name: Generate dummy test secrets
+        # Reuses the committed test age key (decrypts only dummy data) and
+        # encrypts freshly-generated dummy secrets so the VM config evaluates.
+        run: ./test/setup-test-secrets.sh
+
+      - name: ShellCheck scripts
+        run: |
+          nix shell nixpkgs#shellcheck -c shellcheck \
+            scripts/bootstrap.sh \
+            test/setup-test-secrets.sh \
+            test/check-nix.sh \
+            test/smoke-test.sh
+
+      - name: Static config checks (check-nix.sh)
+        run: ./test/check-nix.sh
+
+      - name: Evaluate all flake outputs
+        # --no-build: evaluate every nixosConfiguration (catches type/option/
+        # eval errors) without realising the multi-GB system closures.
+        run: nix flake check --no-build --all-systems
+
+  # ── Slow lane: actually build the VM system closure ─────────────────────────
+  # Proves the whole stack *builds* (not just evaluates). Heavy: pulls Synapse,
+  # PostgreSQL, Element, container images, etc. Runs on PRs, main, the weekly
+  # schedule, and manual dispatch — but not on every feature-branch push.
+  build-vm:
+    name: Build VM closure
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    needs: static-checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free up disk space
+        # The GitHub runner only has ~14 GB free by default; the closure is large.
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: false
+
+      - name: Install Nix (flakes enabled)
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Provide age, sops, openssl
+        run: nix profile install nixpkgs#age nixpkgs#sops nixpkgs#openssl
+
+      - name: Generate dummy test secrets
+        run: ./test/setup-test-secrets.sh
+
+      - name: Build the VM
+        run: |
+          nix build -L \
+            '.#nixosConfigurations.matrix-server-vm.config.system.build.vm'
+
+  # ── End-to-end: boot the stack in a VM and assert services + routing ────────
+  # The real proof the stack works. Boots Synapse/MAS/Postgres/Caddy/Element in
+  # a headless VM via the NixOS test driver and runs test/integration.nix, then
+  # the full smoke-test suite. Needs /dev/kvm — GitHub's ubuntu-latest runners
+  # provide it. Same trigger policy as build-vm (not every feature-branch push).
+  integration:
+    name: Integration test (VM)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    needs: static-checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm KVM is available
+        run: |
+          if [ ! -e /dev/kvm ]; then
+            echo "::error::/dev/kvm not present — the integration test needs nested virt."
+            exit 1
+          fi
+          ls -l /dev/kvm
+
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: false
+
+      - name: Install Nix (flakes enabled)
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Provide age, sops, openssl
+        run: nix profile install nixpkgs#age nixpkgs#sops nixpkgs#openssl
+
+      - name: Generate dummy test secrets
+        run: ./test/setup-test-secrets.sh
+
+      - name: Run integration test
+        run: nix build -L '.#checks.x86_64-linux.integration'

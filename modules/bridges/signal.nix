@@ -12,11 +12,11 @@
 #   systemctl status mautrix-signal
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   port = 29328;
 in
 
-{
+lib.mkIf config.nixmatrix.bridges.signal.enable {
   # bridges/doublepuppet_as_token is owned by matrix-synapse (doublepuppet.nix).
   # A per-service sops template copy below makes it readable by mautrix-signal.
   sops.templates."signal-dp-token" = {
@@ -47,7 +47,7 @@ in
 
       bridge = {
         permissions = {
-          "*" = "relaybot";
+          "*" = "relay";
           ${domain} = "admin";
         };
 
@@ -81,7 +81,7 @@ in
 
         dp_token=$(< ${lib.escapeShellArg config.sops.templates."signal-dp-token".path})
 
-        ${pkgs.python3}/bin/python3 - "$cfg" "$dp_token" <<'PYEOF'
+        ${pkgs.python3.withPackages (ps: [ ps.pyyaml ])}/bin/python3 - "$cfg" "$dp_token" <<'PYEOF'
 import sys, yaml, pathlib
 
 cfg_path = pathlib.Path(sys.argv[1])

@@ -1,0 +1,231 @@
+# Production Deployment Guide
+
+This walks you through deploying nixMatrix to a real server, from a blank VPS to a
+working federated Matrix homeserver.
+
+> ⚠️ **The deploy reinstalls the target machine with NixOS, wiping its disk.** Use a
+> fresh server, or one whose contents you are happy to destroy.
+
+---
+
+## Overview
+
+```
+  bootstrap.sh ──▶ set domain/keys/secrets ──▶ point DNS ──▶ nixos-anywhere ──▶ verify
+```
+
+1. [Prerequisites](#1-prerequisites)
+2. [DNS](#2-dns)
+3. [Bootstrap](#3-bootstrap-keys-secrets-config)
+4. [Review the config](#4-review-the-config)
+5. [Deploy](#5-deploy)
+6. [Post-install](#6-post-install)
+7. [Day-2: updates, secrets, backups](#7-day-2-operations)
+8. [Troubleshooting](#8-troubleshooting)
+
+---
+
+## 1. Prerequisites
+
+**On the server:**
+- A Linux host you can reach as `root@<SERVER_IP>` over SSH (it will be reinstalled).
+- 2+ vCPU, 4+ GB RAM, 40+ GB disk recommended.
+- A static public IPv4 (and ideally IPv6).
+
+**On your workstation:**
+- [Nix with flakes](https://nixos.org/download) enabled.
+- `age`, `sops`, `openssl`. If missing:
+  `nix shell nixpkgs#age nixpkgs#sops nixpkgs#openssl`
+- An SSH keypair (`ssh-keygen -t ed25519` if you don't have one).
+
+---
+
+## 2. DNS
+
+Point these records at your server's IP. Replace `example.com` with your domain.
+
+| Record | Type | Purpose |
+|--------|------|---------|
+| `example.com` | A / AAAA | Root — serves `.well-known` delegation |
+| `matrix.example.com` | A / AAAA | Synapse homeserver + federation |
+| `auth.example.com` | A / AAAA | Matrix Authentication Service (login) |
+| `element.example.com` | A / AAAA | Element Web client |
+| `chat.example.com` | A / AAAA | FluffyChat client |
+| `admin.example.com` | A / AAAA | Admin panel |
+| `rtc.example.com` | A / AAAA | LiveKit / Element Call signalling |
+| `call.example.com` | A / AAAA | Element Call frontend |
+| `monitoring.example.com` | A / AAAA | Grafana |
+| `authelia.example.com` | A / AAAA | Authelia SSO (only if you enable it) |
+
+The simplest setup is a wildcard `*.example.com` plus the apex `example.com`.
+
+Caddy obtains Let's Encrypt certificates automatically on first boot, so DNS must
+resolve **before** you deploy. Ports 80 and 443 must be reachable for the ACME
+HTTP challenge.
+
+---
+
+## 3. Bootstrap (keys, secrets, config)
+
+The guided script handles encryption keys, secrets, and the config values for you:
+
+```bash
+./scripts/bootstrap.sh
+```
+
+It will:
+- ask for your domain, ACME email, SSH public key, and target disk, and write them
+  into [hosts/matrix-server.nix](../hosts/matrix-server.nix) and
+  [modules/disk.nix](../modules/disk.nix);
+- create an **admin age key** (`~/.config/sops/age/keys.txt`) so you can edit secrets;
+- create a **host age key**, staged at `.bootstrap/extra-files/etc/age/key.txt`, which
+  nixos-anywhere copies to the server so it can decrypt secrets at boot;
+- write `.sops.yaml` with both recipients;
+- generate every service secret and write the encrypted `secrets/secrets.yaml`.
+
+> **Telegram bridge:** the script prompts for `telegram_api_id` / `telegram_api_hash`
+> from <https://my.telegram.org>. You can leave them blank and fill them in later
+> with `sops secrets/secrets.yaml` — only the Telegram bridge is affected.
+
+<details>
+<summary>Manual alternative (no bootstrap script)</summary>
+
+1. Set `nixmatrix.domain`, `users.users.root.openssh.authorizedKeys.keys`, and
+   (optionally) `nixmatrix.acmeEmail` in `hosts/matrix-server.nix`; set the disk in
+   `modules/disk.nix`.
+2. Generate an admin key: `age-keygen -o ~/.config/sops/age/keys.txt`
+3. Generate a host key: `age-keygen -o .bootstrap/extra-files/etc/age/key.txt`
+4. Put both public keys (`age-keygen -y <file>`) into `.sops.yaml` as `host`/`admin`.
+5. Fill in `secrets/secrets.yaml` from the template, then encrypt:
+   `sops -e -i secrets/secrets.yaml`
+   (generation commands are documented inline in that file).
+</details>
+
+---
+
+## 4. Review the config
+
+Run the static checks — they catch known configuration pitfalls without building:
+
+```bash
+./test/check-nix.sh
+```
+
+Confirm your values landed:
+
+```bash
+grep nixmatrix hosts/matrix-server.nix
+grep device   modules/disk.nix
+sops -d secrets/secrets.yaml | head   # should print decrypted YAML
+```
+
+Optionally, prove the whole stack boots locally first — either the hand-driven VM
+in [test/README.md](../test/README.md), or the automated integration test (boots
+the stack headless and asserts services + routing; needs `/dev/kvm`):
+
+```bash
+nix build .#checks.x86_64-linux.integration -L
+```
+
+---
+
+## 5. Deploy
+
+```bash
+nix run github:numtide/nixos-anywhere -- \
+  --flake .#matrix-server \
+  --extra-files .bootstrap/extra-files \
+  root@<SERVER_IP>
+```
+
+`--extra-files` seeds the host age key at `/etc/age/key.txt` so sops-nix can decrypt
+secrets on the very first boot. nixos-anywhere partitions the disk (via disko),
+installs NixOS, and reboots into the running stack.
+
+First boot downloads packages and requests TLS certificates — give it a few minutes.
+
+---
+
+## 6. Post-install
+
+**Check services are up:**
+
+```bash
+ssh root@<SERVER_IP> 'systemctl status matrix-synapse mas postgresql caddy'
+```
+
+**Run the smoke test against the live host** (from the repo, it SSHes in):
+
+```bash
+./test/smoke-test.sh root@<SERVER_IP>
+```
+
+**Verify federation:** open
+`https://federationtester.matrix.org/#example.com` — it should report success.
+
+**Create your first user.** Registration is handled by MAS:
+
+```bash
+ssh root@<SERVER_IP>
+mas-cli manage register-user      # interactive; or:
+mas-cli manage add-user <username>
+mas-cli manage set-password <username>
+```
+
+**Log in:** browse to `https://element.example.com` and sign in with that account.
+
+---
+
+## 7. Day-2 operations
+
+**Push config changes** (after editing any `.nix` file):
+
+```bash
+nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>
+```
+
+**Edit secrets** (re-encrypts automatically on save):
+
+```bash
+sops secrets/secrets.yaml
+nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>
+```
+
+**Add another admin who can edit secrets:** add their age public key to `.sops.yaml`,
+then `sops updatekeys secrets/secrets.yaml`.
+
+**Update package versions:**
+
+```bash
+nix flake update          # or: nix flake lock --update-input nixpkgs
+nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>
+```
+
+**Backups:** PostgreSQL is dumped daily (zstd) to `/var/backup/postgresql` on the
+server. This is **on-host only** — copy it off-server regularly, e.g.:
+
+```bash
+rsync -a root@<SERVER_IP>:/var/backup/postgresql/ ./backups/
+```
+
+Test a restore before you rely on it. Also back up `secrets/secrets.yaml` and your
+admin age key — losing the key means losing access to the secrets.
+
+---
+
+## 8. Troubleshooting
+
+| Symptom | Where to look |
+|---------|---------------|
+| Service won't start | `journalctl -u <service> -e` on the host |
+| TLS cert errors | `journalctl -u caddy -e`; confirm DNS resolves and 80/443 are open |
+| Secrets missing at boot | confirm `/etc/age/key.txt` exists on host; check `journalctl -u sops-nix` |
+| Login fails | `journalctl -u mas -e`; check `auth.example.com/.well-known/openid-configuration` |
+| Federation fails | federationtester.matrix.org; check `matrix.example.com/.well-known/matrix/server` |
+| Bridge won't connect | `journalctl -u mautrix-<network> -e`; verify its secrets/credentials |
+
+Locked out over SSH? Password auth is disabled by design — you must have set
+`users.users.root.openssh.authorizedKeys.keys` before deploying. If you missed it,
+use your provider's console/recovery to add a key, or re-run the deploy.
+
+For deeper internals and a table of subtle fixes, see [NIXOS_PLAN.md](../NIXOS_PLAN.md).

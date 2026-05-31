@@ -10,11 +10,11 @@
 # into the generated config file before the bridge starts.
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   port = 29317;
 in
 
-{
+lib.mkIf config.nixmatrix.bridges.telegram.enable {
   sops.secrets = {
     # Telegram API credentials — unique to this bridge
     "bridges/telegram_api_id"  = { owner = "mautrix-telegram"; };
@@ -55,7 +55,7 @@ in
         api_id = 0;         # placeholder — overwritten by ExecStartPre
         api_hash = "";      # placeholder — overwritten by ExecStartPre
         permissions = {
-          "*" = "relaybot";
+          "*" = "relay";
           ${domain} = "admin";
         };
       };
@@ -89,7 +89,7 @@ in
         dp_token=$(< ${lib.escapeShellArg config.sops.templates."telegram-dp-token".path})
 
         # Use a Python one-liner for safe YAML field patching (no quoting nightmares)
-        ${pkgs.python3}/bin/python3 - "$cfg" "$api_id" "$api_hash" "$dp_token" <<'PYEOF'
+        ${pkgs.python3.withPackages (ps: [ ps.pyyaml ])}/bin/python3 - "$cfg" "$api_id" "$api_hash" "$dp_token" <<'PYEOF'
 import sys, yaml, pathlib
 
 cfg_path = pathlib.Path(sys.argv[1])

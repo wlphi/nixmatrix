@@ -41,14 +41,20 @@
   # Do NOT set auto_https off: that prevents Caddy from wiring up the TLS connection
   # policies properly, causing TLS internal error even with explicit tls internal per site.
   # The admin API localhost binding stays from the base caddy.nix globalConfig.
-  services.caddy.virtualHosts = builtins.listToAttrs (map (name: {
-    inherit name;
-    value.extraConfig = lib.mkBefore "tls internal\n";
-  }) [
-    "mair.io" "matrix.mair.io" "auth.mair.io" "element.mair.io"
-    "chat.mair.io" "admin.mair.io" "authelia.mair.io"
-    "rtc.mair.io" "call.mair.io" "monitoring.mair.io"
-  ]);
+  # Subdomains are derived from nixmatrix.domain so this keeps working if you
+  # change the domain.
+  services.caddy.virtualHosts =
+    let
+      d = config.nixmatrix.domain;
+    in
+    builtins.listToAttrs (map (name: {
+      inherit name;
+      value.extraConfig = lib.mkBefore "tls internal\n";
+    }) [
+      "${d}" "matrix.${d}" "auth.${d}" "element.${d}"
+      "chat.${d}" "admin.${d}" "authelia.${d}"
+      "rtc.${d}" "call.${d}" "monitoring.${d}"
+    ]);
 
   # Allow password auth + root login for easy SSH access in VM
   services.openssh.settings.PasswordAuthentication = lib.mkForce true;

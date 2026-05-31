@@ -44,7 +44,9 @@ cat > test/test-sops.yaml <<EOF
 keys:
   - &testkey ${PUBKEY}
 creation_rules:
-  - path_regex: test/test-secrets\.yaml$
+  # path_regex is matched relative to THIS config file's directory (test/),
+  # so the basename is correct here — not test/test-secrets.yaml.
+  - path_regex: test-secrets\.yaml\$
     key_groups:
       - age:
           - *testkey
@@ -79,22 +81,30 @@ DUMMY_HEX15=$(openssl rand -hex 32)
 
 # Generate a dummy RSA key for MAS signing
 DUMMY_RSA_KEY=$(openssl genrsa 2048 2>/dev/null | openssl pkcs8 -topk8 -nocrypt 2>/dev/null)
+# Separate dummy RSA key for Authelia's OIDC issuer (jwks is derived from it)
+DUMMY_OIDC_RSA_KEY=$(openssl genrsa 2048 2>/dev/null | openssl pkcs8 -topk8 -nocrypt 2>/dev/null)
 
-cat > "${SECRETS_FILE}.plaintext" <<EOF
+cat > "${SECRETS_FILE}" <<EOF
 matrix:
     postgres_password: ${DUMMY_HEX}
-    mas_secret_key: ${DUMMY_HEX2}${DUMMY_HEX3}
+    # MAS encryption secret must be exactly 32 bytes = 64 hex chars (one rand -hex 32).
+    # Concatenating two would make it 64 bytes and MAS rejects it at startup.
+    mas_secret_key: ${DUMMY_HEX2}
     mas_signing_key: |
 $(echo "$DUMMY_RSA_KEY" | sed 's/^/        /')
     synapse_shared_secret: ${DUMMY_HEX4}
     synapse_client_secret: ${DUMMY_HEX5}
     synapse_admin_token: ${DUMMY_HEX6}
     livekit_secret: ${DUMMY_HEX7}
+    grafana_secret_key: $(openssl rand -hex 32)
 
 authelia:
     jwt_secret: ${DUMMY_HEX8}
     session_secret: ${DUMMY_HEX9}
     storage_encryption_key: ${DUMMY_HEX10}
+    oidc_hmac_secret: $(openssl rand -hex 32)
+    oidc_issuer_private_key: |
+$(echo "$DUMMY_OIDC_RSA_KEY" | sed 's/^/        /')
     oidc_client_secret: ${DUMMY_HEX11}
 
 bridges:
@@ -109,12 +119,11 @@ bridges:
 EOF
 
 echo "Encrypting test secrets with sops..."
+# Encrypt in place on the final filename so the sops creation_rule (anchored
+# on test-secrets.yaml$) matches. Encrypting a *.plaintext file would not match.
 SOPS_AGE_KEY_FILE="$KEY_FILE" sops \
   --config test/test-sops.yaml \
-  --encrypt "${SECRETS_FILE}.plaintext" > "$SECRETS_FILE"
-
-# Remove the plaintext version
-rm "${SECRETS_FILE}.plaintext"
+  --encrypt --in-place "${SECRETS_FILE}"
 
 echo "✓ Encrypted test secrets: $SECRETS_FILE"
 echo ""

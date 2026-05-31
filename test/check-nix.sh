@@ -186,11 +186,20 @@ check "modules/synapse.nix" \
   "enable_metrics = true" \
   "Synapse Prometheus metrics enabled"
 
-# All bridge registrations listed
+# Bridges are opt-in (nixmatrix.bridges.<net>.enable, default off) and register
+# themselves with Synapse via the mautrix module's registerToSynapse. Synapse
+# must therefore NOT hardcode bridge registration paths (doing so pointed at
+# files nothing creates → FileNotFoundError, blocking the homeserver).
 for bridge in telegram whatsapp signal discord; do
-  check "modules/synapse.nix" \
+  no_check "modules/synapse.nix" \
     "${bridge}-registration.yaml" \
-    "Synapse registers ${bridge} bridge appservice"
+    "Synapse does NOT hardcode ${bridge} registration (bridge self-registers)"
+done
+# Each bridge module is gated behind its opt-in flag.
+for bridge in telegram whatsapp signal discord; do
+  check "modules/bridges/${bridge}.nix" \
+    "lib.mkIf config.nixmatrix.bridges.${bridge}.enable" \
+    "Bridge ${bridge} is opt-in (gated on nixmatrix.bridges.${bridge}.enable)"
 done
 
 # ─── Bridge checks ────────────────────────────────────────────────────────────

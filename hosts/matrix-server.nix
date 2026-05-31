@@ -2,8 +2,17 @@
 
 {
   # ── Identity ──────────────────────────────────────────────────────────────
+  # ┌─────────────────────────────────────────────────────────────────────┐
+  # │ CHANGE THIS to deploy your own instance. This is the ONE value that   │
+  # │ matters — every service subdomain (matrix.*, auth.*, element.*, …)    │
+  # │ and Matrix user IDs (@user:<domain>) are derived from it.             │
+  # └─────────────────────────────────────────────────────────────────────┘
+  nixmatrix.domain = "mair.io";
+  # Optional: contact email for Let's Encrypt (defaults to admin@<domain>).
+  # nixmatrix.acmeEmail = "you@example.com";
+
   networking.hostName = "matrix";
-  networking.domain = "mair.io";
+  networking.domain = config.nixmatrix.domain;
   time.timeZone = "UTC";
 
   # ── Firewall ──────────────────────────────────────────────────────────────
@@ -32,6 +41,15 @@
     };
   };
 
+  # ┌─────────────────────────────────────────────────────────────────────┐
+  # │ REQUIRED: add your SSH public key(s) here BEFORE deploying.           │
+  # │ Password auth is disabled, so without this you will be locked out of  │
+  # │ the server after the install. Get yours with: cat ~/.ssh/id_ed25519.pub
+  # └─────────────────────────────────────────────────────────────────────┘
+  users.users.root.openssh.authorizedKeys.keys = [
+    # "ssh-ed25519 AAAA... you@example.com"
+  ];
+
   # ── Boot ──────────────────────────────────────────────────────────────────
   # disko (disk.nix) handles partitioning and filesystem for nixos-anywhere.
   # For a manually-installed host, replace with hardware-configuration.nix.
@@ -39,7 +57,10 @@
     enable = true;
     efiSupport = true;
     efiInstallAsRemovable = true;
-    # disko sets devices — do not set here
+    # UEFI boot: GRUB installs to the EFI System Partition (the EF00 partition
+    # disko creates), not to a disk MBR — so "nodev". efiInstallAsRemovable
+    # writes the fallback bootloader path, which is what VPS firmware boots.
+    devices = [ "nodev" ];
   };
 
   # ── sops-nix ──────────────────────────────────────────────────────────────

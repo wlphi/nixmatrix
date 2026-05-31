@@ -8,11 +8,11 @@
 # Double puppet: inject token at runtime via ExecStartPre.
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   port = 29334;
 in
 
-{
+lib.mkIf config.nixmatrix.bridges.discord.enable {
   # bridges/doublepuppet_as_token is owned by matrix-synapse (doublepuppet.nix).
   # A per-service sops template copy below makes it readable by mautrix-discord.
   sops.templates."discord-dp-token" = {
@@ -43,7 +43,7 @@ in
 
       bridge = {
         permissions = {
-          "*" = "relaybot";
+          "*" = "relay";
           ${domain} = "admin";
         };
 
@@ -77,7 +77,7 @@ in
 
         dp_token=$(< ${lib.escapeShellArg config.sops.templates."discord-dp-token".path})
 
-        ${pkgs.python3}/bin/python3 - "$cfg" "$dp_token" <<'PYEOF'
+        ${pkgs.python3.withPackages (ps: [ ps.pyyaml ])}/bin/python3 - "$cfg" "$dp_token" <<'PYEOF'
 import sys, yaml, pathlib
 
 cfg_path = pathlib.Path(sys.argv[1])

@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 let
-  domain = "mair.io";
+  domain = config.nixmatrix.domain;
   # CORS headers applied to most Matrix API routes
   corsHeaders = ''
     header Access-Control-Allow-Origin "*"
@@ -14,7 +14,7 @@ in
   services.caddy = {
     enable = true;
     # Let's Encrypt contact email
-    email = "admin@${domain}";
+    email = config.nixmatrix.acmeEmail;
 
     # Admin API on localhost only — never expose to external interfaces
     globalConfig = ''
@@ -47,7 +47,7 @@ in
           }
 
           handle {
-            respond "mair.io" 200
+            respond "${domain}" 200
           }
         '';
       };

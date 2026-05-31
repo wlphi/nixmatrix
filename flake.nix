@@ -1,5 +1,5 @@
 {
-  description = "NixOS Matrix Stack — mair.io";
+  description = "nixMatrix — a self-hosted Matrix homeserver stack for NixOS";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -36,6 +36,14 @@
     let
       system = "x86_64-linux";
 
+      # nixpkgs instance for building checks. allowUnfree + the libolm insecure
+      # allowance match what the host config needs.
+      pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+        config.permittedInsecurePackages = [ "olm-3.2.16" ];
+      };
+
       sharedModules = [
         sops-nix.nixosModules.sops
         nixos-matrix-modules.nixosModules.default
@@ -44,6 +52,16 @@
       ];
     in
     {
+      # ── Checks (run with: nix flake check) ────────────────────────────────
+      # `integration` boots the whole stack in a VM and asserts services +
+      # routing. It needs /dev/kvm, so it runs locally or on a KVM-capable CI
+      # runner — see .github/workflows/ci.yml and docs/DEPLOY.md.
+      checks.${system} = {
+        integration = import ./test/integration.nix {
+          inherit pkgs inputs sharedModules;
+        };
+      };
+
       nixosConfigurations = {
 
         # Production target — deploy with:

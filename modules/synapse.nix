@@ -30,6 +30,13 @@ in
   services.matrix-synapse = {
     enable = true;
 
+    # MSC3861 (delegating auth to MAS) requires the `authlib` Python dep, which
+    # ships in the "oidc" extra. The module only auto-adds "oidc" when
+    # settings.oidc_providers is set — but we enable MSC3861 via extraConfigFiles,
+    # so it must be requested explicitly or Synapse refuses to start:
+    #   "MSC3861 is enabled but authlib is not installed".
+    extras = [ "systemd" "postgres" "url-preview" "oidc" ];
+
     # Synapse environment file — secrets injected via $SYNAPSE_* env vars.
     # Note: matrix-synapse NixOS module doesn't directly support environmentFile,
     # so we use extraConfigFiles to read secrets from a sops-rendered file.
@@ -60,6 +67,10 @@ in
           port = 9092;
           bind_addresses = [ "127.0.0.1" ];
           type = "metrics";
+          # Explicit tls = false: the NixOS listener submodule defaults tls to
+          # true, which makes Synapse demand a tls_certificate_path and refuse
+          # to start (we terminate TLS at Caddy, so Synapse listeners are plain).
+          tls = false;
           resources = [];
         }
       ];
@@ -68,13 +79,14 @@ in
       enable_registration = false;
       enable_metrics = true;
 
-      # Appservice registrations (bridges + double puppet)
+      # Appservice registrations. Only the double-puppet registration is listed
+      # manually here. Each ENABLED mautrix bridge appends its own registration
+      # automatically via the module's registerToSynapse option (correct path +
+      # startup ordering), so a disabled bridge contributes nothing and can never
+      # block Synapse from starting. Listing the bridge files here unconditionally
+      # was a bug: it pointed at paths nothing creates → Synapse FileNotFoundError.
       app_service_config_files = [
         "/var/lib/matrix-synapse/appservices/doublepuppet.yaml"
-        "/var/lib/matrix-synapse/appservices/telegram-registration.yaml"
-        "/var/lib/matrix-synapse/appservices/whatsapp-registration.yaml"
-        "/var/lib/matrix-synapse/appservices/signal-registration.yaml"
-        "/var/lib/matrix-synapse/appservices/discord-registration.yaml"
       ];
 
       # PostgreSQL connection — password read from sops-rendered extra config
@@ -150,4 +162,13 @@ in
   systemd.tmpfiles.rules = [
     "d /var/lib/matrix-synapse/appservices 0750 matrix-synapse matrix-synapse -"
   ];
+
+  # Synapse connects as the `synapse` PG user, whose password is set at runtime
+  # by postgresql-set-passwords. Without this ordering the first start can race
+  # ahead of the password being set and fail auth (recovers on restart, but a
+  # clean boot should have zero failed attempts).
+  systemd.services.matrix-synapse = {
+    after = [ "postgresql-set-passwords.service" ];
+    requires = [ "postgresql-set-passwords.service" ];
+  };
 }

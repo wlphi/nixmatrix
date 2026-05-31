@@ -1,93 +1,178 @@
 # nixMatrix
 
+A complete, self-hosted [Matrix](https://matrix.org) homeserver stack as a single
+NixOS flake. Deploy a federated, end-to-end-encrypted chat server — with modern
+OIDC login, web clients, messaging bridges, video calls, and monitoring — to a
+fresh VPS in one command.
 
+Everything is declarative and reproducible: the entire server is described in this
+repo, secrets are encrypted with [sops-nix](https://github.com/Mic92/sops-nix), and
+deployment is a single `nixos-anywhere` run.
 
-## Getting started
+> **Status:** feature-complete and validated in a local VM. It has not yet been
+> battle-tested across many production deployments — see [Project status](#project-status).
+> If you run it, please open an issue with how it went.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+---
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## What you get
 
-## Add your files
+| Area | Components |
+|------|-----------|
+| **Homeserver** | [Synapse](https://github.com/element-hq/synapse) with federation |
+| **Authentication** | [Matrix Authentication Service (MAS)](https://github.com/element-hq/matrix-authentication-service) — modern OIDC/OAuth2 login (MSC3861) |
+| **Web clients** | [Element Web](https://github.com/element-hq/element-web), [FluffyChat](https://fluffychat.im), and an admin panel |
+| **Bridges** | mautrix [Telegram](https://github.com/mautrix/telegram), [WhatsApp](https://github.com/mautrix/whatsapp), [Signal](https://github.com/mautrix/signal), [Discord](https://github.com/mautrix/discord) |
+| **Voice / video** | [Element Call](https://github.com/element-hq/element-call) backed by [LiveKit](https://livekit.io) |
+| **SSO (optional)** | [Authelia](https://www.authelia.com) as an upstream identity provider |
+| **TLS & routing** | [Caddy](https://caddyserver.com) with automatic Let's Encrypt certificates |
+| **Data** | PostgreSQL 16 (per-service users, daily backups) + Redis |
+| **Observability** | Prometheus, node/postgres exporters, and Grafana dashboards |
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+All secrets stay encrypted at rest and are only ever decrypted to `tmpfs` at runtime —
+never written to the Nix store.
+
+## Architecture
+
+A single host runs everything behind Caddy, which terminates TLS and routes each
+subdomain to the right service:
 
 ```
-cd existing_repo
-git remote add origin <your-repo-url>
-git branch -M main
-git push -uf origin main
+                          ┌──────────────────────── your-domain.com ────────────────────────┐
+   Internet ──443──▶ Caddy │  matrix.*  → Synapse        auth.*    → MAS                       │
+                          │  element.* → Element Web    chat.*    → FluffyChat               │
+                          │  admin.*   → Admin panel    rtc.*     → LiveKit / Element Call   │
+                          │  call.*    → Element Call   monitoring.* → Grafana               │
+                          └──────────────────────────────────────────────────────────────────┘
+                                   │              │               │
+                              PostgreSQL        Redis        mautrix bridges
 ```
 
-## Integrate with your tools
+Every subdomain is derived automatically from the one `nixmatrix.domain` value you set.
 
-* [Set up project integrations](<your-repo-url>/-/settings/integrations)
+## Prerequisites
 
-## Collaborate with your team
+- A server you can SSH into as root, running any Linux (it gets reinstalled with
+  NixOS) — 2+ vCPU and 4+ GB RAM recommended.
+- A domain you control, with DNS pointed at the server (see [DNS](#1-dns)).
+- Locally: [Nix](https://nixos.org/download) with flakes enabled, plus `age` and
+  `sops` (the bootstrap script can install these via `nix shell`).
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## Quick start (production)
 
-## Test and Deploy
+```bash
+git clone <this-repo> nixmatrix && cd nixmatrix
 
-Use the built-in continuous integration in GitLab.
+# 1. Guided setup: generates encryption keys, fills in secrets, sets your domain.
+./scripts/bootstrap.sh
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+# 2. Review the generated config, then deploy to your server.
+nix run github:numtide/nixos-anywhere -- --flake .#matrix-server root@<SERVER_IP>
+```
 
-***
+The bootstrap script walks you through everything interactively. For the full
+manual procedure, DNS records, and post-install steps, see
+**[docs/DEPLOY.md](docs/DEPLOY.md)**.
 
-# Editing this README
+After the first deploy, push config changes with:
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```bash
+nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>
+```
 
-## Suggestions for a good README
+## Try it locally first (no server needed)
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+You can build and boot the whole stack in a QEMU VM on your laptop to see it work
+before touching a real server:
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+./test/setup-test-secrets.sh                       # one-time: dummy secrets
+nixos-rebuild build-vm --flake .#matrix-server-vm
+./result/bin/run-nixmatrix-vm
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Then browse to `https://localhost:8443` (self-signed cert). See
+[test/README.md](test/README.md) for details and known VM limitations.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Configuration
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+The only value you **must** change is your domain, in
+[hosts/matrix-server.nix](hosts/matrix-server.nix):
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```nix
+nixmatrix.domain = "your-domain.com";   # everything else is derived from this
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+You'll also set, in the same file:
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- `users.users.root.openssh.authorizedKeys.keys` — your SSH public key (password
+  login is disabled, so this is required or you'll be locked out).
+- `disko.devices.disk.main.device` in [modules/disk.nix](modules/disk.nix) — the
+  target disk (`/dev/sda`, `/dev/vda`, `/dev/nvme0n1`; check with `lsblk`).
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+**Messaging bridges are opt-in.** Enable only the networks you use:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```nix
+nixmatrix.bridges.whatsapp.enable = true;
+nixmatrix.bridges.signal.enable   = true;
+# telegram also needs API credentials in secrets.yaml (see below)
+```
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+A disabled bridge contributes nothing and can never prevent the homeserver from
+starting; each enabled bridge registers itself with Synapse automatically.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+Secrets live in `secrets/secrets.yaml` (encrypted with sops). The bootstrap script
+generates them for you; the template is documented in
+[secrets/secrets.yaml](secrets/secrets.yaml).
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Documentation
 
-## License
-For open source projects, say how it is licensed.
+- **[docs/DEPLOY.md](docs/DEPLOY.md)** — full production deployment guide.
+- **[test/README.md](test/README.md)** — local VM testing.
+- **[NIXOS_PLAN.md](NIXOS_PLAN.md)** — design rationale, per-service deep dives, and a
+  table of hard-won fixes (great if you want to understand or modify internals).
+
+## Testing
+
+```bash
+./test/check-nix.sh    # static checks for known config pitfalls (no build needed)
+nix flake check        # evaluates every config; runs the VM integration test (needs /dev/kvm)
+./test/smoke-test.sh   # integration assertions against an already-running VM or host
+```
+
+The **integration test** ([test/integration.nix](test/integration.nix)) boots the
+whole stack headless in a VM and asserts the core services start and the critical
+routes work (well-known delegation, login routed to MAS, OIDC discovery, Element
+served), then runs the full smoke-test suite. Run it directly with:
+
+```bash
+nix build .#checks.x86_64-linux.integration -L
+```
+
+CI runs static checks on every push, and builds + integration-tests the stack on
+PRs and `main` — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+
+The full stack is **boot-verified**: an automated NixOS VM test
+([test/integration.nix](test/integration.nix)) boots Synapse, MAS, PostgreSQL,
+Caddy, and Authelia from the real configuration and asserts every core service
+reaches `active` with zero restarts, all databases exist, and the critical routes
+work (well-known delegation, login → MAS, OIDC discovery, Element). It runs in CI.
+
+What's still maturing:
+
+- It has not yet been proven across many real-world production deployments (the VM
+  test uses self-signed TLS and dummy secrets; real Let's Encrypt + federation are
+  not exercised in CI).
+- Messaging bridges are opt-in and not exercised end-to-end in CI (Telegram needs
+  real API credentials); enable and verify them per-deployment.
+- Bridge end-to-end encryption is intentionally disabled (MSC4190 is currently
+  incompatible with MAS).
+- Slack and IRC/Hookshot bridges are planned but not yet implemented.
+
+Contributions, bug reports, and "it worked / it didn't" notes are very welcome.
+
+## License
+
+[MIT](LICENSE).
