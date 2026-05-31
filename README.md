@@ -1,17 +1,15 @@
 # nixMatrix
 
 A complete, self-hosted [Matrix](https://matrix.org) homeserver stack as a single
-NixOS flake. Deploy a federated, end-to-end-encrypted chat server — with modern
-OIDC login, web clients, messaging bridges, video calls, and monitoring — to a
-fresh VPS in one command.
+NixOS flake. Deploy a federated chat server — with modern OIDC login, web clients,
+messaging bridges, video calls, and monitoring — to a fresh VPS in one command.
 
 Everything is declarative and reproducible: the entire server is described in this
 repo, secrets are encrypted with [sops-nix](https://github.com/Mic92/sops-nix), and
 deployment is a single `nixos-anywhere` run.
 
-> **Status:** feature-complete and validated in a local VM. It has not yet been
-> battle-tested across many production deployments — see [Project status](#project-status).
-> If you run it, please open an issue with how it went.
+> **Status:** boot-verified in CI, not yet battle-tested on real hardware — see
+> [Project status](#project-status). If you run it, open an issue with how it went.
 
 ---
 
@@ -56,7 +54,7 @@ Every subdomain is derived automatically from the one `nixmatrix.domain` value y
   NixOS) — 2+ vCPU and 4+ GB RAM recommended.
 - A domain you control, with DNS pointed at the server (see [DNS](#1-dns)).
 - Locally: [Nix](https://nixos.org/download) with flakes enabled, plus `age` and
-  `sops` (the bootstrap script can install these via `nix shell`).
+  `sops` (if missing, the bootstrap script prints the `nix shell` command to get them).
 
 ## Quick start (production)
 
@@ -135,30 +133,22 @@ generates them for you; the template is documented in
 ## Testing
 
 ```bash
-./test/check-nix.sh    # static checks for known config pitfalls (no build needed)
-nix flake check        # evaluates every config; runs the VM integration test (needs /dev/kvm)
-./test/smoke-test.sh   # integration assertions against an already-running VM or host
+./test/check-nix.sh    # static checks for known config pitfalls (no build)
+nix flake check        # evaluates every config + runs the VM integration test (needs /dev/kvm)
+./test/smoke-test.sh   # assertions against an already-running VM or host
 ```
 
-The **integration test** ([test/integration.nix](test/integration.nix)) boots the
-whole stack headless in a VM and asserts the core services start and the critical
-routes work (well-known delegation, login routed to MAS, OIDC discovery, Element
-served), then runs the full smoke-test suite. Run it directly with:
-
-```bash
-nix build .#checks.x86_64-linux.integration -L
-```
-
-CI runs static checks on every push, and builds + integration-tests the stack on
-PRs and `main` — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
+The integration test ([test/integration.nix](test/integration.nix)) is what backs
+the "boot-verified" claim below. CI runs the static checks on every push and the
+full build + integration test on PRs and `main`
+([.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 ## Project status
 
-The full stack is **boot-verified**: an automated NixOS VM test
-([test/integration.nix](test/integration.nix)) boots Synapse, MAS, PostgreSQL,
-Caddy, and Authelia from the real configuration and asserts every core service
-reaches `active` with zero restarts, all databases exist, and the critical routes
-work (well-known delegation, login → MAS, OIDC discovery, Element). It runs in CI.
+**Boot-verified:** the integration test boots Synapse, MAS, PostgreSQL, Caddy, and
+Authelia from the real config and asserts every core service reaches `active` with
+zero restarts, all databases exist, and the critical routes work (well-known
+delegation, login → MAS, OIDC discovery, Element). It runs in CI.
 
 What's still maturing:
 
