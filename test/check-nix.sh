@@ -52,7 +52,7 @@ check "modules/mas.nix" \
   "fetch_userinfo: true" \
   "MAS upstream provider has fetch_userinfo: true (Bug #3 — empty username/email)"
 
-# Bug #8: Use http://localhost for discovery (not https://authelia.mair.io)
+# Bug #8: Use http://localhost for discovery (not https://authelia.example.com)
 # HTTPS to Authelia from MAS triggers SSL cert trust issues on self-signed certs
 check "modules/mas.nix" \
   "discovery_url: \"http://localhost:9091" \
@@ -122,7 +122,7 @@ check "modules/caddy.nix" \
   "/_matrix/client/v3/register" \
   "Caddy routes register to MAS"
 
-# Well-known delegation from root domain (server_name = mair.io, not matrix.mair.io)
+# Well-known delegation from root domain (server_name = example.com, not matrix.example.com)
 check "modules/caddy.nix" \
   '/.well-known/matrix/client' \
   "Caddy serves /.well-known/matrix/client on root domain"
@@ -165,7 +165,7 @@ check "modules/bridges/doublepuppet.nix" \
 
 check "modules/bridges/doublepuppet.nix" \
   "@.*:\${domain}" \
-  "doublepuppet user regex uses domain variable (evaluates to mair.io)"
+  "doublepuppet user regex uses domain variable (evaluates to example.com)"
 
 check "modules/bridges/doublepuppet.nix" \
   "exclusive: false" \
@@ -176,7 +176,7 @@ section "Synapse (modules/synapse.nix)"
 
 check "modules/synapse.nix" \
   'server_name = domain' \
-  "Synapse server_name is domain (mair.io)"
+  "Synapse server_name is domain (example.com)"
 
 check "modules/synapse.nix" \
   "enable_registration = false" \

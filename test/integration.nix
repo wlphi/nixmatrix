@@ -100,29 +100,29 @@ pkgs.testers.runNixOSTest {
     # ── Caddy routing (tls internal in the VM, so -k + --resolve) ───────────
     # well-known delegation advertises the homeserver + OIDC issuer.
     wk = machine.succeed(
-        "curl -sfk --resolve mair.io:443:127.0.0.1 "
-        "https://mair.io/.well-known/matrix/client"
+        "curl -sfk --resolve example.com:443:127.0.0.1 "
+        "https://example.com/.well-known/matrix/client"
     )
-    assert "matrix.mair.io" in wk, "well-known missing homeserver base_url"
-    assert "auth.mair.io" in wk, "well-known missing m.authentication issuer"
+    assert "matrix.example.com" in wk, "well-known missing homeserver base_url"
+    assert "auth.example.com" in wk, "well-known missing m.authentication issuer"
 
     # login must route to MAS, not Synapse (MSC3861 compat endpoint).
     machine.succeed(
-        "curl -sfk --resolve matrix.mair.io:443:127.0.0.1 "
-        "https://matrix.mair.io/_matrix/client/v3/login | grep -q m.login"
+        "curl -sfk --resolve matrix.example.com:443:127.0.0.1 "
+        "https://matrix.example.com/_matrix/client/v3/login | grep -q m.login"
     )
 
     # MAS OIDC discovery is reachable and advertises the public issuer.
     disco = machine.succeed(
-        "curl -sfk --resolve auth.mair.io:443:127.0.0.1 "
-        "https://auth.mair.io/.well-known/openid-configuration"
+        "curl -sfk --resolve auth.example.com:443:127.0.0.1 "
+        "https://auth.example.com/.well-known/openid-configuration"
     )
-    assert "https://auth.mair.io/" in disco, "OIDC issuer is not the public URL"
+    assert "https://auth.example.com/" in disco, "OIDC issuer is not the public URL"
 
     # Element Web is served.
     machine.succeed(
-        "curl -sfk --resolve element.mair.io:443:127.0.0.1 "
-        "https://element.mair.io/ -o /dev/null"
+        "curl -sfk --resolve element.example.com:443:127.0.0.1 "
+        "https://element.example.com/ -o /dev/null"
     )
 
     # ── Full smoke-test suite (informational — rich per-check output) ────────

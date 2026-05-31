@@ -72,7 +72,7 @@ in
         '';
       };
 
-      # ── matrix.mair.io — Synapse + MAS compat endpoints ─────────────────
+      # ── matrix.example.com — Synapse + MAS compat endpoints ─────────────────
       "matrix.${domain}" = {
         extraConfig = ''
           # Preflight OPTIONS for Matrix API
@@ -109,7 +109,7 @@ in
             }
           }
 
-          # Well-known served here too (for clients that hit matrix.mair.io directly)
+          # Well-known served here too (for clients that hit matrix.example.com directly)
           handle /.well-known/matrix/client {
             header Content-Type application/json
             header Access-Control-Allow-Origin "*"
@@ -137,7 +137,7 @@ in
         '';
       };
 
-      # ── auth.mair.io — Matrix Authentication Service ─────────────────────
+      # ── auth.example.com — Matrix Authentication Service ─────────────────────
       "auth.${domain}" = {
         extraConfig = ''
           # OIDC discovery — CORS needed for browser clients
@@ -195,7 +195,7 @@ in
         '';
       };
 
-      # ── element.mair.io — Element Web ─────────────────────────────────────
+      # ── element.example.com — Element Web ─────────────────────────────────────
       # element-web NixOS module serves via nginx on 127.0.0.1:8765
       "element.${domain}" = {
         extraConfig = ''
@@ -203,21 +203,21 @@ in
         '';
       };
 
-      # ── chat.mair.io — FluffyChat ─────────────────────────────────────────
+      # ── chat.example.com — FluffyChat ─────────────────────────────────────────
       "chat.${domain}" = {
         extraConfig = ''
           reverse_proxy localhost:8766
         '';
       };
 
-      # ── admin.mair.io — Ketesa (element-admin) ────────────────────────────
+      # ── admin.example.com — Ketesa (element-admin) ────────────────────────────
       "admin.${domain}" = {
         extraConfig = ''
           reverse_proxy localhost:8767
         '';
       };
 
-      # ── rtc.mair.io — LiveKit + lk-jwt-service ────────────────────────────
+      # ── rtc.example.com — LiveKit + lk-jwt-service ────────────────────────────
       "rtc.${domain}" = {
         extraConfig = ''
           handle /livekit/jwt* {
@@ -229,14 +229,14 @@ in
         '';
       };
 
-      # ── call.mair.io — Element Call frontend ──────────────────────────────
+      # ── call.example.com — Element Call frontend ──────────────────────────────
       "call.${domain}" = {
         extraConfig = ''
           reverse_proxy localhost:8768
         '';
       };
 
-      # ── monitoring.mair.io — Grafana ─────────────────────────────────────
+      # ── monitoring.example.com — Grafana ─────────────────────────────────────
       "monitoring.${domain}" = {
         extraConfig = ''
           reverse_proxy localhost:3000

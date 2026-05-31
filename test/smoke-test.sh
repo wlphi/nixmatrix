@@ -179,10 +179,10 @@ if [[ -f "$MAS_CFG" ]]; then
     "MAS config: discovery_url uses localhost HTTP (Bug #8 — TLS bypass)"
 
   # Issuer is the public auth domain (not localhost or internal)
-  assert_contains "$MAS_CFG" "issuer: \"https://auth.mair.io/\"" \
-    "MAS config: issuer = https://auth.mair.io/"
-  assert_contains "$MAS_CFG" "public_base: \"https://auth.mair.io/\"" \
-    "MAS config: public_base = https://auth.mair.io/"
+  assert_contains "$MAS_CFG" "issuer: \"https://auth.example.com/\"" \
+    "MAS config: issuer = https://auth.example.com/"
+  assert_contains "$MAS_CFG" "public_base: \"https://auth.example.com/\"" \
+    "MAS config: public_base = https://auth.example.com/"
 
   # Synapse endpoint uses localhost (NixOS same-host deployment)
   assert_contains "$MAS_CFG" "endpoint: \"http://localhost:8008\"" \
@@ -235,9 +235,9 @@ if [[ -f "$DP_YAML" ]]; then
   assert_not_contains "$DP_YAML" "REPLACE_AT_RUNTIME" \
     "doublepuppet.yaml: as_token is not REPLACE_AT_RUNTIME placeholder"
 
-  # User namespace regex must match mair.io
-  assert_contains "$DP_YAML" "@.*:mair.io" \
-    "doublepuppet.yaml: user namespace regex matches mair.io"
+  # User namespace regex must match example.com
+  assert_contains "$DP_YAML" "@.*:example.com" \
+    "doublepuppet.yaml: user namespace regex matches example.com"
 
   assert_contains "$DP_YAML" "exclusive: false" \
     "doublepuppet.yaml: non-exclusive namespace (bridges and users coexist)"
@@ -251,8 +251,8 @@ if [[ -f "$SYN_EXTRA" ]]; then
   assert_valid_yaml "$SYN_EXTRA"
   assert_contains "$SYN_EXTRA" "msc3861" \
     "Synapse extra config: MSC3861 block present"
-  assert_contains "$SYN_EXTRA" "issuer: \"https://auth.mair.io/\"" \
-    "Synapse extra config: MSC3861 issuer = https://auth.mair.io/"
+  assert_contains "$SYN_EXTRA" "issuer: \"https://auth.example.com/\"" \
+    "Synapse extra config: MSC3861 issuer = https://auth.example.com/"
   assert_contains "$SYN_EXTRA" "client_id: \"0000000000000000000SYNAPSE\"" \
     "Synapse extra config: MSC3861 client_id correct"
 fi
@@ -315,9 +315,9 @@ fi
 section "HTTP endpoints (via Caddy port 443 with tls internal + Host headers)"
 
 info "Warming up Caddy TLS certs (tls internal generates certs on first connection)..."
-for domain in mair.io matrix.mair.io auth.mair.io element.mair.io \
-              chat.mair.io admin.mair.io authelia.mair.io \
-              rtc.mair.io call.mair.io monitoring.mair.io; do
+for domain in example.com matrix.example.com auth.example.com element.example.com \
+              chat.example.com admin.example.com authelia.example.com \
+              rtc.example.com call.example.com monitoring.example.com; do
   curl -sk --connect-timeout 5 --resolve "${domain}:443:127.0.0.1" "https://${domain}/" -o /dev/null 2>/dev/null || true
 done
 
@@ -333,109 +333,109 @@ mas_health=$(curl -sf --connect-timeout 5 "http://localhost:8081/health" 2>/dev/
   && pass "MAS :8081/health → OK" \
   || warn "MAS :8081/health: '${mas_health}' (may be starting with test DB credentials)"
 
-# Well-known on root domain (mair.io)
-header "Well-known delegation (mair.io)"
-wk_root=$(curl_h "mair.io" "/.well-known/matrix/client")
+# Well-known on root domain (example.com)
+header "Well-known delegation (example.com)"
+wk_root=$(curl_h "example.com" "/.well-known/matrix/client")
 echo "$wk_root" | grep -q '"m.homeserver"' \
-  && pass "mair.io /.well-known/matrix/client responds" \
-  || fail "mair.io /.well-known/matrix/client: '${wk_root:-no response}'"
+  && pass "example.com /.well-known/matrix/client responds" \
+  || fail "example.com /.well-known/matrix/client: '${wk_root:-no response}'"
 echo "$wk_root" | grep -q '"m.authentication"' \
-  && pass "mair.io /.well-known includes m.authentication" \
-  || fail "mair.io /.well-known missing m.authentication"
-echo "$wk_root" | grep -q "auth.mair.io" \
-  && pass "mair.io /.well-known m.authentication.issuer = auth.mair.io" \
-  || fail "mair.io /.well-known issuer wrong: '${wk_root:-}'"
+  && pass "example.com /.well-known includes m.authentication" \
+  || fail "example.com /.well-known missing m.authentication"
+echo "$wk_root" | grep -q "auth.example.com" \
+  && pass "example.com /.well-known m.authentication.issuer = auth.example.com" \
+  || fail "example.com /.well-known issuer wrong: '${wk_root:-}'"
 
-wk_srv=$(curl_h "mair.io" "/.well-known/matrix/server")
+wk_srv=$(curl_h "example.com" "/.well-known/matrix/server")
 echo "$wk_srv" | grep -q '"m.server"' \
-  && pass "mair.io /.well-known/matrix/server responds" \
-  || fail "mair.io /.well-known/matrix/server: '${wk_srv:-no response}'"
-echo "$wk_srv" | grep -q "matrix.mair.io" \
-  && pass "mair.io /.well-known/matrix/server delegates to matrix.mair.io" \
-  || fail "mair.io /.well-known/matrix/server wrong: '${wk_srv:-}'"
+  && pass "example.com /.well-known/matrix/server responds" \
+  || fail "example.com /.well-known/matrix/server: '${wk_srv:-no response}'"
+echo "$wk_srv" | grep -q "matrix.example.com" \
+  && pass "example.com /.well-known/matrix/server delegates to matrix.example.com" \
+  || fail "example.com /.well-known/matrix/server wrong: '${wk_srv:-}'"
 
 # Well-known on matrix domain too
-header "Well-known on matrix.mair.io"
-wk_matrix=$(curl_h "matrix.mair.io" "/.well-known/matrix/client")
+header "Well-known on matrix.example.com"
+wk_matrix=$(curl_h "matrix.example.com" "/.well-known/matrix/client")
 echo "$wk_matrix" | grep -q '"m.homeserver"' \
-  && pass "matrix.mair.io /.well-known/matrix/client responds" \
-  || fail "matrix.mair.io /.well-known/matrix/client: '${wk_matrix:-no response}'"
+  && pass "matrix.example.com /.well-known/matrix/client responds" \
+  || fail "matrix.example.com /.well-known/matrix/client: '${wk_matrix:-no response}'"
 
 # Matrix API routing
 header "Matrix API routing"
-versions_code=$(curl_h_status "matrix.mair.io" "/_matrix/client/versions")
+versions_code=$(curl_h_status "matrix.example.com" "/_matrix/client/versions")
 [[ "$versions_code" == "200" ]] \
   && pass "/_matrix/client/versions → 200" \
   || warn "/_matrix/client/versions → ${versions_code} (Synapse may be starting)"
 
 # Login must be proxied to MAS, not left to Synapse (which returns 404 for /login)
-login=$(curl_h "matrix.mair.io" "/_matrix/client/v3/login")
+login=$(curl_h "matrix.example.com" "/_matrix/client/v3/login")
 echo "$login" | grep -qE '"flows"|"type"|"session"' \
   && pass "/_matrix/client/v3/login → MAS (returns login flows)" \
   || warn "/_matrix/client/v3/login: '${login:-no response}' (Caddy routing issue or MAS down)"
 
 # Register must be proxied to MAS (not Synapse which always 403s when registration=false)
-reg_code=$(curl_h_status "matrix.mair.io" "/_matrix/client/v3/register")
+reg_code=$(curl_h_status "matrix.example.com" "/_matrix/client/v3/register")
 [[ "$reg_code" != "403" || "$reg_code" == "404" ]] \
   && pass "/_matrix/client/v3/register → MAS (not Synapse 403)" \
   || warn "/_matrix/client/v3/register → 403 (may be Synapse handling instead of MAS)"
 
 # MAS OIDC discovery (Issue #16 regression: issuer must be public URL, not localhost)
 header "MAS OIDC discovery (Issue #16 regression)"
-oidc=$(curl_h "auth.mair.io" "/.well-known/openid-configuration")
+oidc=$(curl_h "auth.example.com" "/.well-known/openid-configuration")
 echo "$oidc" | grep -q '"issuer"' \
   && pass "MAS /.well-known/openid-configuration responds" \
   || warn "MAS OIDC discovery: '${oidc:-no response}' (MAS may be starting)"
-echo "$oidc" | grep -q '"issuer":"https://auth.mair.io/"' \
-  && pass "MAS OIDC issuer = https://auth.mair.io/ (not internal host)" \
+echo "$oidc" | grep -q '"issuer":"https://auth.example.com/"' \
+  && pass "MAS OIDC issuer = https://auth.example.com/ (not internal host)" \
   || warn "MAS OIDC issuer wrong (Issue #16): '${oidc:-}'"
 
 # CORS: /_matrix/client/versions must return CORS header
 header "CORS headers"
-cors_matrix=$(curl_cors "matrix.mair.io" "/_matrix/client/versions" "https://element.mair.io")
+cors_matrix=$(curl_cors "matrix.example.com" "/_matrix/client/versions" "https://element.example.com")
 echo "$cors_matrix" | grep -qi "access-control-allow-origin:" \
   && pass "/_matrix/client/versions: CORS header present" \
   || warn "/_matrix/client/versions: missing CORS header — web clients will fail"
 
-cors_login=$(curl_cors "matrix.mair.io" "/_matrix/client/v3/login" "https://element.mair.io")
+cors_login=$(curl_cors "matrix.example.com" "/_matrix/client/v3/login" "https://element.example.com")
 echo "$cors_login" | grep -qi "access-control-allow-origin:" \
   && pass "/_matrix/client/v3/login: CORS header present" \
   || warn "/_matrix/client/v3/login: missing CORS header"
 
-# Issue #22 regression: /_synapse/admin CORS must be scoped to admin.mair.io
-cors_admin=$(curl_cors "matrix.mair.io" "/_synapse/admin/v1/server_version" "https://admin.mair.io")
-echo "$cors_admin" | grep -qi "access-control-allow-origin:.*admin.mair.io" \
-  && pass "/_synapse/admin: CORS scoped to admin.mair.io (Issue #22)" \
+# Issue #22 regression: /_synapse/admin CORS must be scoped to admin.example.com
+cors_admin=$(curl_cors "matrix.example.com" "/_synapse/admin/v1/server_version" "https://admin.example.com")
+echo "$cors_admin" | grep -qi "access-control-allow-origin:.*admin.example.com" \
+  && pass "/_synapse/admin: CORS scoped to admin.example.com (Issue #22)" \
   || warn "/_synapse/admin: CORS header missing or wrong origin (Issue #22 regression)"
 
 # ─── Client app frontends (nginx) ─────────────────────────────────────────────
 section "Client frontends (nginx → Caddy proxy)"
 
-# element.mair.io → nginx on :8765
-element_code=$(curl_h_status "element.mair.io" "/")
+# element.example.com → nginx on :8765
+element_code=$(curl_h_status "element.example.com" "/")
 [[ "$element_code" == "200" ]] \
-  && pass "element.mair.io → 200 (Element Web served)" \
-  || fail "element.mair.io → ${element_code} (expected 200)"
+  && pass "element.example.com → 200 (Element Web served)" \
+  || fail "element.example.com → ${element_code} (expected 200)"
 
-# admin.mair.io → nginx on :8767 (404 from Ketesa SPA = nginx is up, routing works)
-admin_code=$(curl_h_status "admin.mair.io" "/")
+# admin.example.com → nginx on :8767 (404 from Ketesa SPA = nginx is up, routing works)
+admin_code=$(curl_h_status "admin.example.com" "/")
 [[ "$admin_code" =~ ^(200|404)$ ]] \
-  && pass "admin.mair.io → ${admin_code} (Ketesa nginx responding)" \
-  || fail "admin.mair.io → ${admin_code} (nginx not responding)"
+  && pass "admin.example.com → ${admin_code} (Ketesa nginx responding)" \
+  || fail "admin.example.com → ${admin_code} (nginx not responding)"
 
-# auth.mair.io/account/* → MAS proxy (502 = MAS down as expected; 000 or 404 = Caddy routing bug)
-account_code=$(curl_h_status "auth.mair.io" "/account/login")
+# auth.example.com/account/* → MAS proxy (502 = MAS down as expected; 000 or 404 = Caddy routing bug)
+account_code=$(curl_h_status "auth.example.com" "/account/login")
 [[ "$account_code" == "502" ]] \
-  && pass "auth.mair.io/account/* → 502 (proxied to MAS — handle not handle_path)" \
+  && pass "auth.example.com/account/* → 502 (proxied to MAS — handle not handle_path)" \
   || [[ "$account_code" == "200" ]] \
-  && pass "auth.mair.io/account/* → 200 (MAS account portal)" \
-  || fail "auth.mair.io/account/* → ${account_code} (expected 502 or 200, not 000/404)"
+  && pass "auth.example.com/account/* → 200 (MAS account portal)" \
+  || fail "auth.example.com/account/* → ${account_code} (expected 502 or 200, not 000/404)"
 
-# monitoring.mair.io → Grafana on :3000
-grafana_code=$(curl_h_status "monitoring.mair.io" "/api/health")
+# monitoring.example.com → Grafana on :3000
+grafana_code=$(curl_h_status "monitoring.example.com" "/api/health")
 [[ "$grafana_code" == "200" ]] \
-  && pass "monitoring.mair.io/api/health → 200 (Grafana via Caddy)" \
-  || fail "monitoring.mair.io/api/health → ${grafana_code} (Grafana not responding)"
+  && pass "monitoring.example.com/api/health → 200 (Grafana via Caddy)" \
+  || fail "monitoring.example.com/api/health → ${grafana_code} (Grafana not responding)"
 
 # Prometheus internal health (not behind Caddy — internal service)
 prom_code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 5 "http://localhost:9090/-/ready" 2>/dev/null || echo "000")

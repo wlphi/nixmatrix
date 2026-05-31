@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 # Prometheus + node_exporter + Grafana
-# Grafana: https://monitoring.mair.io (proxied by Caddy)
+# Grafana: https://monitoring.example.com (proxied by Caddy)
 # Prometheus and exporters: localhost only, not externally exposed
 
 {

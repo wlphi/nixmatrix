@@ -7,7 +7,7 @@
   # │ matters — every service subdomain (matrix.*, auth.*, element.*, …)    │
   # │ and Matrix user IDs (@user:<domain>) are derived from it.             │
   # └─────────────────────────────────────────────────────────────────────┘
-  nixmatrix.domain = "mair.io";
+  nixmatrix.domain = "example.com";
   # Optional: contact email for Let's Encrypt (defaults to admin@<domain>).
   # nixmatrix.acmeEmail = "you@example.com";
 

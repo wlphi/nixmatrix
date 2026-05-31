@@ -128,4 +128,4 @@ nixos-rebuild switch --flake .#matrix-server-vm \
 - **TLS is disabled** (`auto_https off` in Caddy) — no ACME in VM
 - **Secrets are dummy values** — services start but bridges won't connect to real networks
 - **OCI containers (LiveKit, FluffyChat) may not start** — Podman needs extra nested virt setup in some VMs
-- **mair.io domains don't resolve inside VM** — use `localhost:8080` instead, or add `/etc/hosts` entries in the VM
+- **example.com domains don't resolve inside VM** — use `localhost:8080` instead, or add `/etc/hosts` entries in the VM

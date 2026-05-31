@@ -6,8 +6,8 @@
 # is safer than assuming the native module exists.
 #
 # Caddy (caddy.nix) routes:
-#   rtc.mair.io/livekit/jwt  → localhost:8082 (lk-jwt-service)
-#   rtc.mair.io/livekit/sfu  → localhost:7880 (livekit)
+#   rtc.example.com/livekit/jwt  → localhost:8082 (lk-jwt-service)
+#   rtc.example.com/livekit/sfu  → localhost:7880 (livekit)
 #
 # Firewall (hosts/matrix-server.nix) opens:
 #   7881/tcp  — WebRTC TCP fallback
