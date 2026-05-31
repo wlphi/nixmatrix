@@ -2,26 +2,45 @@
 
 let
   domain = config.nixmatrix.domain;
+  proxy = config.nixmatrix.externalProxy;
+
   # CORS headers applied to most Matrix API routes
   corsHeaders = ''
     header Access-Control-Allow-Origin "*"
     header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
     header Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
   '';
+
+  # Each vhost is keyed by hostname. Normally Caddy serves it over HTTPS and
+  # fetches a certificate. In external-proxy mode we instead serve plain HTTP on
+  # a shared local port (http://<host>:<port>) and let the upstream proxy do TLS.
+  # mkHosts rewrites the keys accordingly without touching the vhost bodies.
+  mkHosts = hosts:
+    if proxy.enable
+    then lib.mapAttrs' (name: v: lib.nameValuePair "http://${name}:${toString proxy.port}" v) hosts
+    else hosts;
 in
 
 {
   services.caddy = {
     enable = true;
-    # Let's Encrypt contact email
+    # Let's Encrypt contact email (unused in external-proxy mode — no certs here)
     email = config.nixmatrix.acmeEmail;
 
-    # Admin API on localhost only — never expose to external interfaces
     globalConfig = ''
+      # Admin API on localhost only — never expose to external interfaces
       admin localhost:2019
+    '' + lib.optionalString proxy.enable ''
+      # External-proxy mode: the upstream proxy terminates TLS, so don't manage
+      # certificates here. Trust X-Forwarded-* from local/private-range proxies
+      # so MAS sees the real https:// host when building OAuth2 redirect URIs.
+      auto_https off
+      servers {
+        trusted_proxies static private_ranges
+      }
     '';
 
-    virtualHosts = {
+    virtualHosts = mkHosts ({
 
       # ── <domain> (apex) — well-known delegation only ────────────────────
       # server_name is the apex <domain> (Matrix IDs are @user:<domain>), but
@@ -231,6 +250,6 @@ in
           reverse_proxy localhost:9091
         '';
       };
-    };
+    });
   };
 }

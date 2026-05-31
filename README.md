@@ -10,13 +10,13 @@ deployment is a single `nixos-anywhere` run.
 
 > This is the NixOS sibling of
 > [**ess-docker-compose**](https://github.com/wlphi/ess-docker-compose) — the same
-> stack as a Docker Compose deployment. Prefer that one if you want Docker on an
-> existing box; use this if you run (or want to run) NixOS and prefer a single
-> declarative config. The hard-won fixes from that project's issue tracker are
-> baked into this one's config and tests.
+> stack as a Docker Compose deployment. Use that one for Docker on an existing
+> box; use this if you run (or want to run) NixOS and prefer a single declarative
+> config. Both stay in sync.
 
-> **Status:** boot-verified in CI, not yet battle-tested on real hardware — see
-> [Project status](#project-status). If you run it, open an issue with how it went.
+> **Status:** the whole stack boots and passes automated tests in CI, but hasn't
+> been widely run on real servers yet — see [Project status](#project-status).
+> If you deploy it, please open an issue and say how it went.
 
 ---
 
@@ -129,9 +129,13 @@ starting; each enabled bridge registers itself with Synapse automatically.
 Other optional toggles (all default off, set in the same file):
 
 ```nix
-nixmatrix.openRegistration = true;   # public self-signup (else admin-only)
-nixmatrix.sso.enable       = true;   # Authelia SSO in front of MAS
+nixmatrix.openRegistration    = true;   # public self-signup (else admin-only)
+nixmatrix.sso.enable          = true;   # Authelia SSO in front of MAS
+nixmatrix.externalProxy.enable = true;  # sit behind your own nginx/Apache (see docs)
 ```
+
+Already run nginx or Apache? nixMatrix can sit behind it — see
+[examples/reverse-proxy/](examples/reverse-proxy/) for ready-to-use configs.
 
 Secrets live in `secrets/secrets.yaml` (encrypted with sops). The bootstrap script
 generates them for you; the template is documented in
@@ -141,8 +145,8 @@ generates them for you; the template is documented in
 
 - **[docs/DEPLOY.md](docs/DEPLOY.md)** — full production deployment guide.
 - **[test/README.md](test/README.md)** — local VM testing.
-- **[NIXOS_PLAN.md](NIXOS_PLAN.md)** — design rationale, per-service deep dives, and a
-  table of hard-won fixes (great if you want to understand or modify internals).
+- **[NIXOS_PLAN.md](NIXOS_PLAN.md)** — how each piece is wired and why, if you want
+  to understand or modify the internals.
 
 ## Testing
 
@@ -159,23 +163,25 @@ full build + integration test on PRs and `main`
 
 ## Project status
 
-**Boot-verified:** the integration test boots Synapse, MAS, PostgreSQL, Caddy, and
-Authelia from the real config and asserts every core service reaches `active` with
-zero restarts, all databases exist, and the critical routes work (well-known
-delegation, login → MAS, OIDC discovery, Element). It runs in CI.
+On every change, CI boots the entire stack in a VM and checks that all the core
+services start and stay up, the databases are created, and the important paths
+work — login through MAS, account discovery, and Element loading. So the stack is
+known to come up correctly from the config in this repo.
 
-What's still maturing:
+What it hasn't done yet:
 
-- It has not yet been proven across many real-world production deployments (the VM
-  test uses self-signed TLS and dummy secrets; real Let's Encrypt + federation are
-  not exercised in CI).
-- Messaging bridges are opt-in and not exercised end-to-end in CI (Telegram needs
-  real API credentials); enable and verify them per-deployment.
-- Bridge end-to-end encryption is intentionally disabled (MSC4190 is currently
-  incompatible with MAS).
-- Slack and IRC/Hookshot bridges are planned but not yet implemented.
+- **Run widely on real servers.** The automated test uses self-signed certificates
+  and throwaway secrets, so it doesn't prove real Let's Encrypt certificates or
+  federation with other Matrix servers. Your first deploy is the real test —
+  please report how it goes.
+- **Calls behind difficult networks.** Voice/video works on a normal VPS but has no
+  TURN server, so it can fail on home/CGNAT connections (see
+  [docs/DEPLOY.md](docs/DEPLOY.md#9-known-limitations--caveats)).
+- **Bridges end-to-end.** They're off by default and you enable the ones you want;
+  bridge encryption is intentionally disabled (it isn't compatible with MAS yet).
+- **Slack and IRC bridges** aren't implemented yet.
 
-Contributions, bug reports, and "it worked / it didn't" notes are very welcome.
+Bug reports and "it worked / it didn't" notes are very welcome.
 
 ## License
 

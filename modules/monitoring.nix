@@ -93,10 +93,10 @@
     };
   };
 
-  # Enable Caddy Prometheus metrics endpoint (requires Caddy admin API)
+  # Enable Caddy Prometheus metrics endpoint (requires Caddy admin API).
+  # Uses the global `metrics` option (the nested `servers { metrics }` form is
+  # deprecated and conflicts with the trusted_proxies block in external-proxy mode).
   services.caddy.globalConfig = lib.mkAfter ''
-    servers {
-      metrics
-    }
+    metrics
   '';
 }

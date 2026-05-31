@@ -283,32 +283,35 @@ test does not (and cannot) exercise:
 
 ## 10. Running behind an existing reverse proxy
 
-If this isn't a dedicated box — e.g. you already run Apache/nginx/Caddy on the
-host (or a separate gateway) that terminates TLS for several services — you have
-two options:
+Already running nginx, Apache, or another web server that handles HTTPS for your
+other sites? You have two choices:
 
-1. **Give Matrix its own host/IP and let its Caddy handle TLS** (the default, and
-   simplest). Point the Matrix subdomains' DNS at that host. Nothing to change.
+**Simplest — give Matrix its own machine.** Let its built-in Caddy handle HTTPS,
+point the Matrix subdomains' DNS at it, and you're done. This is the default;
+skip the rest of this section.
 
-2. **Front it with your existing proxy.** Your proxy terminates TLS and forwards
-   each `*.example.com` Matrix subdomain to this host. In that case you don't want
-   two ACME clients fighting over the same names, so switch Caddy to plain HTTP on
-   a local port and let your proxy do TLS. Sketch:
+**Or put it behind your existing proxy.** Turn on external-proxy mode:
 
-   ```nix
-   # hosts/matrix-server.nix — serve HTTP only; your proxy terminates TLS
-   services.caddy.globalConfig = lib.mkAfter "auto_https off";
-   # then forward your-proxy → http://<matrix-host>:80 for each subdomain,
-   # preserving the Host header and setting X-Forwarded-Proto: https
-   ```
+```nix
+# hosts/matrix-server.nix
+nixmatrix.externalProxy.enable = true;
+```
 
-   Critical when proxying: **preserve the `Host` header** and set
-   `X-Forwarded-Proto: https` / `X-Forwarded-Host` on the way in — MAS builds its
-   OAuth2 redirect URIs from them, and login breaks silently without them. Also
-   forward the `/.well-known/matrix/*` paths on the apex unchanged. Federation
-   still needs `:8448` (or `:443`) reachable through your proxy.
+Now the built-in Caddy serves plain HTTP on `127.0.0.1:8080` and leaves
+certificates to your proxy — while still doing all the Matrix routing (login,
+`.well-known`, CORS) for you. Point your proxy's HTTPS sites for the Matrix
+subdomains at `127.0.0.1:8080`.
 
-   This is an advanced setup and isn't covered by the integration test — verify
-   login and the federation tester carefully afterward.
+**Drop-in configs are provided** — copy the one for your proxy, replace
+`example.com`, set your certificate paths, and reload:
 
-For deeper internals and a table of subtle fixes, see [NIXOS_PLAN.md](../NIXOS_PLAN.md).
+- nginx → [`examples/reverse-proxy/nginx.conf`](../examples/reverse-proxy/nginx.conf)
+- Apache → [`examples/reverse-proxy/apache.conf`](../examples/reverse-proxy/apache.conf)
+- details → [`examples/reverse-proxy/README.md`](../examples/reverse-proxy/README.md)
+
+One thing the configs handle that's easy to miss if you write your own: the
+original `Host` header and `X-Forwarded-Proto: https` must be passed through, or
+login fails. Calls also need UDP `50100–50200` / TCP `7881` reachable to the
+Matrix host directly — that media traffic doesn't go through your proxy.
+
+For how each piece is wired internally, see [NIXOS_PLAN.md](../NIXOS_PLAN.md).

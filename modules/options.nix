@@ -31,6 +31,34 @@
       '';
     };
 
+    externalProxy = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Put this stack behind a reverse proxy you already run (nginx, Apache,
+          another Caddy, …) that handles TLS for your other sites too.
+
+          When off (the default), the built-in Caddy gets Let's Encrypt
+          certificates and serves HTTPS directly — nothing else needed.
+
+          When on, the built-in Caddy stops touching certificates and serves
+          plain HTTP on `externalProxy.port` instead. Your own proxy terminates
+          HTTPS and forwards each Matrix subdomain to that port. Ready-to-use
+          nginx and Apache configs are in `examples/reverse-proxy/`.
+        '';
+      };
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 8080;
+        description = ''
+          The local HTTP port the built-in Caddy listens on when
+          `externalProxy.enable` is set. Your reverse proxy forwards the Matrix
+          subdomains here. Only used in external-proxy mode.
+        '';
+      };
+    };
+
     openRegistration = lib.mkOption {
       type = lib.types.bool;
       default = false;
