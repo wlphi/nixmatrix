@@ -24,6 +24,7 @@ working federated Matrix homeserver.
 8. [Troubleshooting](#8-troubleshooting)
 9. [Known limitations & caveats](#9-known-limitations--caveats)
 10. [Running behind an existing reverse proxy](#10-running-behind-an-existing-reverse-proxy)
+11. [Upgrades & recovery](#11-upgrades--recovery)
 
 ---
 
@@ -233,8 +234,15 @@ server. This is **on-host only** — copy it off-server regularly, e.g.:
 rsync -a root@<SERVER_IP>:/var/backup/postgresql/ ./backups/
 ```
 
-Test a restore before you rely on it. Also back up `secrets/secrets.yaml` and your
-admin age key — losing the key means losing access to the secrets.
+To restore a backup, see [§11 Upgrades & recovery](#11-upgrades--recovery) and
+`scripts/restore-db.sh`. Test a restore before you rely on it. Also back up
+`secrets/secrets.yaml` and your admin age key — losing the key means losing access
+to the secrets.
+
+**Re-running bootstrap is safe.** `scripts/bootstrap.sh` detects an existing
+`secrets/secrets.yaml`: it asks before regenerating, and if you decline it just
+re-encrypts to the current recipient keys (it won't silently rotate your secrets
+and log everyone out).
 
 ---
 
@@ -326,3 +334,83 @@ login fails. Calls also need UDP `50100–50200` / TCP `7881` reachable to the
 Matrix host directly — that media traffic doesn't go through your proxy.
 
 For how each piece is wired internally, see [NIXOS_PLAN.md](../NIXOS_PLAN.md).
+
+## 11. Upgrades & recovery
+
+### Routine updates
+
+Day-to-day updates are just §7: edit a `.nix` file or run `nix flake update`, then
+`nixos-rebuild switch`. The points below are for the cases that need more care.
+
+### Rollback (the NixOS safety net)
+
+Every `nixos-rebuild switch` creates a new boot generation; the previous one stays
+on disk. If an upgrade misbehaves, roll back:
+
+```bash
+# revert to the previous generation immediately
+nixos-rebuild switch --rollback --flake .#matrix-server --target-host root@<SERVER_IP>
+```
+
+Or pick an older generation from the boot menu on the console. Rollback reverts
+**config and packages** — it does **not** undo database schema migrations that a
+service already applied (see the Postgres note below), which is why backups still
+matter.
+
+To pin a known-good state, commit your `flake.lock`; `nix flake update` is the only
+thing that moves package versions, so an unchanged lock = reproducible rebuilds.
+
+### Upgrading this repo
+
+When you pull a new version of nixmatrix:
+
+```bash
+git pull
+./test/check-nix.sh          # catch obvious breakage before deploying
+nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>
+```
+
+Read the release notes / commit log first — if new secrets or options were added
+(e.g. a new bridge), you may need to add entries to `secrets/secrets.yaml`
+(`sops secrets/secrets.yaml`) before the rebuild succeeds.
+
+### PostgreSQL major version upgrades ⚠️
+
+This is the one upgrade that is **not** automatic. The database is pinned to a
+major version (`pkgs.postgresql_16` in [modules/postgres.nix](../modules/postgres.nix)).
+If a future change bumps that to `_17`, PostgreSQL will **refuse to start** on the
+old data directory — the on-disk format differs between majors. NixOS does not
+migrate it for you.
+
+When (and only when) you intentionally bump the major version:
+
+1. **Back up first** (see below) and confirm the dump is good.
+2. Follow the NixOS manual's PostgreSQL upgrade procedure
+   (<https://nixos.org/manual/nixos/stable/#module-services-postgres-upgrading>) —
+   it uses `pg_upgrade` against both old and new packages.
+3. Or, simpler for a stack this size: dump every database on the old version,
+   stop services, move the old data dir aside, switch to the new version (creates a
+   fresh cluster), and restore the dumps with `scripts/restore-db.sh`.
+
+Staying on a pinned major across `nix flake update` runs is fine and needs none of
+this — only a deliberate major bump does.
+
+### Restore from backup
+
+Backups are written daily to `/var/backup/postgresql/<db>.sql.zst` on the server
+(§7). To restore one — after data loss, a failed major upgrade, or onto a fresh
+deploy — use the helper:
+
+```bash
+# on the server (or via ssh): restore a single database
+./scripts/restore-db.sh synapse /var/backup/postgresql/synapse.sql.zst
+```
+
+It stops the services that use the database, restores the dump, and starts them
+again. Run it once per database you need to recover (`synapse`, `mas`,
+`authelia`, the `mautrix-*` ones). See the script header for details and the
+all-databases loop.
+
+> A backup you have never restored is not a backup. Do a test restore onto a
+> throwaway VM or a spare host at least once, so you know the procedure works
+> before you need it under pressure.
