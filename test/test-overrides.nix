@@ -71,4 +71,15 @@
 
   # Disable the disko module activation in VM (no real disk to partition)
   disko.enableConfig = lib.mkForce false;
+
+  # With disko off, nothing defines a root filesystem, so `system.build.toplevel`
+  # fails its assertion ("fileSystems does not specify your root file system").
+  # The QEMU VM we actually run (build.vm) supplies its own disk, so this is only
+  # a problem for bare toplevel evaluation — which `nix flake check` does for
+  # every nixosConfiguration. Declare a nominal root FS so the VM config also
+  # evaluates as a toplevel; the vmVariant overrides storage at run time anyway.
+  fileSystems."/" = lib.mkDefault {
+    device = "/dev/disk/by-label/nixos";
+    fsType = "ext4";
+  };
 }
