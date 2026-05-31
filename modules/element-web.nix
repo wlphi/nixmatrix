@@ -58,9 +58,10 @@ in
   };
 
   # FluffyChat via OCI container (no nixpkgs package available)
-  # Pin version — check releases: https://github.com/krille-chan/fluffychat/releases
+  # Pin version — check published tags (note: the v1.x tags were unpublished;
+  # current images are v2.x): https://github.com/krille-chan/fluffychat/releases
   virtualisation.oci-containers.containers.fluffychat = {
-    image = "ghcr.io/krille-chan/fluffychat:v1.22.1";
+    image = "ghcr.io/krille-chan/fluffychat:v2.6.0";
     ports = [ "127.0.0.1:${toString fluffychatPort}:80" ];
   };
 }

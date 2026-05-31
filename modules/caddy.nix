@@ -90,7 +90,7 @@ in
           @compat path /_matrix/client/v3/login* /_matrix/client/v3/logout* /_matrix/client/v3/refresh* /_matrix/client/v3/register* /_matrix/client/r0/login* /_matrix/client/r0/logout* /_matrix/client/r0/refresh* /_matrix/client/r0/register*
           handle @compat {
             ${corsHeaders}
-            reverse_proxy localhost:8080 {
+            reverse_proxy 127.0.0.1:8080 {
               header_down -Access-Control-Allow-Origin
             }
           }
@@ -104,7 +104,7 @@ in
             header Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
             @admin_preflight method OPTIONS
             respond @admin_preflight "" 204
-            reverse_proxy localhost:8008 {
+            reverse_proxy 127.0.0.1:8008 {
               header_down -Access-Control-Allow-Origin
             }
           }
@@ -125,14 +125,14 @@ in
           @matrix_rest path_regexp ^/_matrix/.*$
           handle @matrix_rest {
             ${corsHeaders}
-            reverse_proxy localhost:8008 {
+            reverse_proxy 127.0.0.1:8008 {
               header_down -Access-Control-Allow-Origin
             }
           }
 
           # Fallback → Synapse (handles federation, key server, etc.)
           handle {
-            reverse_proxy localhost:8008
+            reverse_proxy 127.0.0.1:8008
           }
         '';
       };
@@ -144,7 +144,7 @@ in
           @disco path /.well-known/openid-configuration
           handle @disco {
             header Access-Control-Allow-Origin "*"
-            reverse_proxy localhost:8080 {
+            reverse_proxy 127.0.0.1:8080 {
               header_down -Access-Control-Allow-Origin
             }
           }
@@ -154,7 +154,7 @@ in
           route @jwks {
             header Access-Control-Allow-Origin "*"
             header Access-Control-Allow-Methods "GET, OPTIONS"
-            reverse_proxy localhost:8080 {
+            reverse_proxy 127.0.0.1:8080 {
               header_down -Access-Control-Allow-Origin
             }
           }
@@ -165,7 +165,7 @@ in
             header Access-Control-Allow-Origin "*"
             header Access-Control-Allow-Methods "GET, POST, OPTIONS"
             header Access-Control-Allow-Headers "Authorization, Content-Type, Accept"
-            reverse_proxy localhost:8080 {
+            reverse_proxy 127.0.0.1:8080 {
               header_down -Access-Control-Allow-Origin
             }
           }
@@ -174,7 +174,7 @@ in
           # handle_path strips the /account/ prefix; MAS is a SPA and needs the
           # prefix intact for client-side routing to work.
           handle /account/* {
-            reverse_proxy localhost:8080 {
+            reverse_proxy 127.0.0.1:8080 {
               header_up Host {http.request.host}
               header_up X-Forwarded-Host {http.request.host}
             }
@@ -182,12 +182,12 @@ in
 
           # MSC2965 auth metadata
           handle /_matrix/client/unstable/org.matrix.msc2965/auth_metadata {
-            reverse_proxy localhost:8080
+            reverse_proxy 127.0.0.1:8080
           }
 
           # Everything else → MAS
           handle {
-            reverse_proxy localhost:8080 {
+            reverse_proxy 127.0.0.1:8080 {
               header_up Host {http.request.host}
               header_up X-Forwarded-Host {http.request.host}
             }
@@ -199,21 +199,21 @@ in
       # element-web NixOS module serves via nginx on 127.0.0.1:8765
       "element.${domain}" = {
         extraConfig = ''
-          reverse_proxy localhost:8765
+          reverse_proxy 127.0.0.1:8765
         '';
       };
 
       # ── chat.example.com — FluffyChat ─────────────────────────────────────────
       "chat.${domain}" = {
         extraConfig = ''
-          reverse_proxy localhost:8766
+          reverse_proxy 127.0.0.1:8766
         '';
       };
 
       # ── admin.example.com — Ketesa (element-admin) ────────────────────────────
       "admin.${domain}" = {
         extraConfig = ''
-          reverse_proxy localhost:8767
+          reverse_proxy 127.0.0.1:8767
         '';
       };
 
@@ -221,10 +221,10 @@ in
       "rtc.${domain}" = {
         extraConfig = ''
           handle /livekit/jwt* {
-            reverse_proxy localhost:8082
+            reverse_proxy 127.0.0.1:8082
           }
           handle /livekit/sfu* {
-            reverse_proxy localhost:7880
+            reverse_proxy 127.0.0.1:7880
           }
         '';
       };
@@ -232,14 +232,14 @@ in
       # ── call.example.com — Element Call frontend ──────────────────────────────
       "call.${domain}" = {
         extraConfig = ''
-          reverse_proxy localhost:8768
+          reverse_proxy 127.0.0.1:8768
         '';
       };
 
       # ── monitoring.example.com — Grafana ─────────────────────────────────────
       "monitoring.${domain}" = {
         extraConfig = ''
-          reverse_proxy localhost:3000
+          reverse_proxy 127.0.0.1:3000
         '';
       };
     }
@@ -247,7 +247,7 @@ in
     // lib.optionalAttrs config.nixmatrix.sso.enable {
       "authelia.${domain}" = {
         extraConfig = ''
-          reverse_proxy localhost:9091
+          reverse_proxy 127.0.0.1:9091
         '';
       };
     });

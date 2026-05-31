@@ -104,15 +104,15 @@ in
         "${config.sops.templates."livekit-config".path}:/config.yaml:ro"
       ];
       cmd = [ "--config" "/config.yaml" "--node-ip" "AUTO" ];
-      # Restart policy
-      extraOptions = [ "--restart=unless-stopped" ];
+      # NB: do NOT add "--restart=..." here. The oci-containers module runs
+      # podman with --rm and lets systemd handle restarts; passing --restart
+      # conflicts with --rm and podman refuses to start (status 125).
     };
 
     lk-jwt-service = {
       image = "ghcr.io/element-hq/lk-jwt-service:${lkJwtVersion}";
       ports = [ "127.0.0.1:8082:8080" ];  # bind to localhost only — Caddy proxies
       environmentFiles = [ config.sops.templates."livekit-jwt-env".path ];
-      extraOptions = [ "--restart=unless-stopped" ];
     };
   };
 }

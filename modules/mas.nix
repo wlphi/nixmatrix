@@ -91,7 +91,7 @@ in
               - name: assets
               - name: adminapi
             binds:
-              - address: "[::1]:8080"
+              - address: "127.0.0.1:8080"
           - name: internal
             resources:
               - name: health
