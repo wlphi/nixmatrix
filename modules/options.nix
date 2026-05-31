@@ -133,14 +133,19 @@
 
     bridges = lib.mkOption {
       description = ''
-        Which mautrix bridges to enable. All default to OFF — enable only the
-        networks you actually use. Each enabled bridge registers itself with
-        Synapse automatically (via the module's registerToSynapse). A disabled
-        bridge contributes nothing and can never prevent Synapse from starting.
+        Which bridges to enable. All default to OFF — enable only what you use.
+        A disabled bridge contributes nothing and can never prevent Synapse from
+        starting.
 
-        Note: the Telegram bridge additionally needs real API credentials in
-        secrets.yaml (bridges/telegram_api_id, bridges/telegram_api_hash) from
-        https://my.telegram.org before it will start.
+        The four mautrix bridges (telegram/whatsapp/signal/discord) register
+        themselves with Synapse automatically. The Telegram one additionally
+        needs real API credentials in secrets.yaml (bridges/telegram_api_id,
+        bridges/telegram_api_hash) from https://my.telegram.org.
+
+        hookshot bridges Matrix to GitHub, GitLab, Jira, generic webhooks, and
+        RSS feeds (it is NOT a chat-network bridge). Out of the box it enables
+        generic incoming webhooks; the service integrations are configured per
+        room from the bridge bot once it's running.
       '';
       default = { };
       type = lib.types.submodule {
@@ -149,6 +154,7 @@
           whatsapp.enable = lib.mkEnableOption "the mautrix-whatsapp bridge";
           signal.enable = lib.mkEnableOption "the mautrix-signal bridge";
           discord.enable = lib.mkEnableOption "the mautrix-discord bridge";
+          hookshot.enable = lib.mkEnableOption "matrix-hookshot (GitHub/GitLab/Jira/webhooks/RSS)";
         };
       };
     };

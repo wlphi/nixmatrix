@@ -24,6 +24,7 @@
     ./bridges/whatsapp.nix
     ./bridges/signal.nix
     ./bridges/discord.nix
+    ./bridges/hookshot.nix
 
     # Element Call / LiveKit (Phase 5)
     ./livekit.nix

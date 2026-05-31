@@ -115,16 +115,19 @@ You'll also set, in the same file:
 - `disko.devices.disk.main.device` in [modules/disk.nix](modules/disk.nix) — the
   target disk (`/dev/sda`, `/dev/vda`, `/dev/nvme0n1`; check with `lsblk`).
 
-**Messaging bridges are opt-in.** Enable only the networks you use:
+**Bridges are opt-in.** Enable only what you use:
 
 ```nix
 nixmatrix.bridges.whatsapp.enable = true;
 nixmatrix.bridges.signal.enable   = true;
 # telegram also needs API credentials in secrets.yaml (see below)
+nixmatrix.bridges.hookshot.enable = true;  # GitHub/GitLab/Jira/webhooks/RSS (not a chat network)
 ```
 
 A disabled bridge contributes nothing and can never prevent the homeserver from
-starting; each enabled bridge registers itself with Synapse automatically.
+starting. The chat bridges (Telegram/WhatsApp/Signal/Discord) connect to those
+networks; hookshot instead links Matrix to GitHub, GitLab, Jira, generic
+webhooks, and RSS.
 
 Other optional toggles (all default off, set in the same file):
 
@@ -181,7 +184,8 @@ What it hasn't done yet:
   [docs/DEPLOY.md](docs/DEPLOY.md#9-known-limitations--caveats).
 - **Bridges end-to-end.** They're off by default and you enable the ones you want;
   bridge encryption is intentionally disabled (it isn't compatible with MAS yet).
-- **Slack and IRC bridges** aren't implemented yet.
+- **Slack and IRC chat bridges** aren't implemented yet (GitHub/GitLab/Jira/
+  webhooks are covered by hookshot).
 
 Bug reports and "it worked / it didn't" notes are very welcome.
 

@@ -212,11 +212,16 @@ for bridge in telegram whatsapp signal discord; do
     "Synapse does NOT hardcode ${bridge} registration (bridge self-registers)"
 done
 # Each bridge module is gated behind its opt-in flag.
-for bridge in telegram whatsapp signal discord; do
+for bridge in telegram whatsapp signal discord hookshot; do
   check "modules/bridges/${bridge}.nix" \
     "lib.mkIf config.nixmatrix.bridges.${bridge}.enable" \
     "Bridge ${bridge} is opt-in (gated on nixmatrix.bridges.${bridge}.enable)"
 done
+# hookshot has no registerToSynapse helper, so (only when enabled) it adds its
+# registration to Synapse's appservice list itself.
+check "modules/bridges/hookshot.nix" \
+  "services.matrix-synapse.settings.app_service_config_files" \
+  "hookshot wires its registration into Synapse's appservice list"
 
 # ─── Bridge checks ────────────────────────────────────────────────────────────
 section "Bridges (modules/bridges/)"

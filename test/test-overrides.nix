@@ -30,6 +30,10 @@
   # in production). The test asserts authelia-main starts cleanly with NRestarts=0.
   nixmatrix.sso.enable = true;
 
+  # Exercise hookshot too — it needs no external credentials (generic webhooks),
+  # so unlike the chat bridges it can actually be boot-tested here.
+  nixmatrix.bridges.hookshot.enable = true;
+
   # VM resource sizing
   virtualisation.vmVariant.virtualisation = {
     memorySize = 4096;

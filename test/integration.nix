@@ -61,6 +61,8 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("matrix-synapse.service")
     # Authelia is optional SSO, but it must start AND stay up (not crash-loop).
     machine.wait_for_unit("authelia-main.service")
+    # hookshot is enabled in test-overrides; it must start cleanly too.
+    machine.wait_for_unit("matrix-hookshot.service")
 
     # Guard against flaky "active" reads: give the units a moment, then assert
     # none of the core services are in a failed/restarting state. wait_for_unit
@@ -68,7 +70,8 @@ pkgs.testers.runNixOSTest {
     machine.sleep(10)
     for unit in ["postgresql.service", "caddy.service",
                  "matrix-authentication-service.service",
-                 "matrix-synapse.service", "authelia-main.service"]:
+                 "matrix-synapse.service", "authelia-main.service",
+                 "matrix-hookshot.service"]:
         state = machine.succeed(f"systemctl is-active {unit}").strip()
         assert state == "active", f"{unit} is {state}, not active (crash-looping?)"
         # NRestarts should be 0 for a clean boot — a climbing count means crash-loop.

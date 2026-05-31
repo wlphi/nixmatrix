@@ -116,6 +116,8 @@ bridges:
     whatsapp_db_password: $(openssl rand -hex 32)
     signal_db_password: $(openssl rand -hex 32)
     discord_db_password: $(openssl rand -hex 32)
+    hookshot_as_token: $(openssl rand -hex 32)
+    hookshot_hs_token: $(openssl rand -hex 32)
 EOF
 
 echo "Encrypting test secrets with sops..."
