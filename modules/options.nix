@@ -31,6 +31,23 @@
       '';
     };
 
+    openRegistration = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Allow anyone to self-register an account through MAS (public signups).
+
+        OFF by default — only an admin can create accounts
+        (`mas-cli manage register-user` on the server). Turn this on for a public
+        homeserver where you want open signups. When enabled, MAS shows a
+        "Create account" flow at auth.<domain>.
+
+        Note: spam/abuse is your responsibility on an open server; consider
+        requiring email verification (configure MAS's email/SMTP settings) before
+        opening registration to the public.
+      '';
+    };
+
     sso.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;

@@ -68,10 +68,18 @@ check "modules/mas.nix" \
   "data:" \
   "MAS policy uses policy.data.registration nesting (NixOS silent-ignore gotcha)"
 
-# Registration disabled by default (open registration is a separate opt-in)
+# Registration is driven by the nixmatrix.openRegistration option, which
+# defaults to false (admin-only). Both the account flag and the policy must be
+# wired to it — MAS silently ignores signups if the two disagree.
 check "modules/mas.nix" \
-  "password_registration_enabled: false" \
-  "MAS registration disabled by default"
+  "password_registration_enabled: \${lib.boolToString config.nixmatrix.openRegistration}" \
+  "MAS account registration wired to nixmatrix.openRegistration"
+check "modules/mas.nix" \
+  "enabled: \${lib.boolToString config.nixmatrix.openRegistration}" \
+  "MAS policy.data.registration wired to nixmatrix.openRegistration"
+check "modules/options.nix" \
+  "openRegistration" \
+  "nixmatrix.openRegistration option exists (defaults to false — admin-only)"
 
 # MAS password hashing scheme
 check "modules/mas.nix" \

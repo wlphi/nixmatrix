@@ -23,6 +23,7 @@ working federated Matrix homeserver.
 7. [Day-2: updates, secrets, backups](#7-day-2-operations)
 8. [Troubleshooting](#8-troubleshooting)
 9. [Known limitations & caveats](#9-known-limitations--caveats)
+10. [Running behind an existing reverse proxy](#10-running-behind-an-existing-reverse-proxy)
 
 ---
 
@@ -181,14 +182,20 @@ ssh root@<SERVER_IP> 'systemctl status matrix-synapse mas postgresql caddy'
 **Verify federation:** open
 `https://federationtester.matrix.org/#example.com` — it should report success.
 
-**Create your first user.** Registration is handled by MAS:
+**Create your first user.** By default registration is admin-only, so create
+accounts on the server with the MAS CLI (`register-user` is interactive and
+prompts for username, password, email, and admin flag):
 
 ```bash
 ssh root@<SERVER_IP>
-mas-cli manage register-user      # interactive; or:
-mas-cli manage add-user <username>
-mas-cli manage set-password <username>
+mas-cli manage register-user
 ```
+
+To reset a password later: `mas-cli manage set-password <username>`.
+
+> **Want public self-signup instead?** Set `nixmatrix.openRegistration = true;`
+> in `hosts/matrix-server.nix` and redeploy — users then get a "Create account"
+> flow at `auth.example.com`. Only do this on a server you intend to be public.
 
 **Log in:** browse to `https://element.example.com` and sign in with that account.
 
@@ -273,5 +280,35 @@ test does not (and cannot) exercise:
   federation, or real client login. Treat your first VPS deploy as a smoke test:
   run `./test/smoke-test.sh root@<SERVER_IP>`, create a user, log in via Element,
   and check the federation tester before inviting anyone else.
+
+## 10. Running behind an existing reverse proxy
+
+If this isn't a dedicated box — e.g. you already run Apache/nginx/Caddy on the
+host (or a separate gateway) that terminates TLS for several services — you have
+two options:
+
+1. **Give Matrix its own host/IP and let its Caddy handle TLS** (the default, and
+   simplest). Point the Matrix subdomains' DNS at that host. Nothing to change.
+
+2. **Front it with your existing proxy.** Your proxy terminates TLS and forwards
+   each `*.example.com` Matrix subdomain to this host. In that case you don't want
+   two ACME clients fighting over the same names, so switch Caddy to plain HTTP on
+   a local port and let your proxy do TLS. Sketch:
+
+   ```nix
+   # hosts/matrix-server.nix — serve HTTP only; your proxy terminates TLS
+   services.caddy.globalConfig = lib.mkAfter "auto_https off";
+   # then forward your-proxy → http://<matrix-host>:80 for each subdomain,
+   # preserving the Host header and setting X-Forwarded-Proto: https
+   ```
+
+   Critical when proxying: **preserve the `Host` header** and set
+   `X-Forwarded-Proto: https` / `X-Forwarded-Host` on the way in — MAS builds its
+   OAuth2 redirect URIs from them, and login breaks silently without them. Also
+   forward the `/.well-known/matrix/*` paths on the apex unchanged. Federation
+   still needs `:8448` (or `:443`) reachable through your proxy.
+
+   This is an advanced setup and isn't covered by the integration test — verify
+   login and the federation tester carefully afterward.
 
 For deeper internals and a table of subtle fixes, see [NIXOS_PLAN.md](../NIXOS_PLAN.md).

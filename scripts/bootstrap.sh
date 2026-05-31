@@ -288,6 +288,7 @@ cat <<EOF
 
   ${BOLD}Optional features${NC} (off by default — enable in hosts/matrix-server.nix):
     • Messaging bridges:  nixmatrix.bridges.whatsapp.enable = true;  (etc.)
+    • Public self-signup: nixmatrix.openRegistration = true;  (else admin-only)
     • SSO via Authelia:   nixmatrix.sso.enable = true;
         Ships an example login admin / changeme — CHANGE IT before exposing.
   ${BOLD}After deploying${NC}, create your first user and verify federation —

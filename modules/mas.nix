@@ -125,7 +125,10 @@ in
             algorithm: argon2id
 
       account:
-        password_registration_enabled: false
+        # Open signups are gated by nixmatrix.openRegistration (default off).
+        # BOTH this flag and policy.data.registration below must agree, or signups
+        # silently fail (a recurring confusion in the upstream Docker project).
+        password_registration_enabled: ${lib.boolToString config.nixmatrix.openRegistration}
         password_registration_email_required: false
         password_change_allowed: true
         password_recovery_enabled: false
@@ -136,7 +139,7 @@ in
       policy:
         data:
           registration:
-            enabled: false
+            enabled: ${lib.boolToString config.nixmatrix.openRegistration}
 
       email:
         from: '"Matrix" <noreply@${domain}>'

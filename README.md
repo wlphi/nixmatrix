@@ -8,6 +8,13 @@ Everything is declarative and reproducible: the entire server is described in th
 repo, secrets are encrypted with [sops-nix](https://github.com/Mic92/sops-nix), and
 deployment is a single `nixos-anywhere` run.
 
+> This is the NixOS sibling of
+> [**ess-docker-compose**](https://github.com/wlphi/ess-docker-compose) — the same
+> stack as a Docker Compose deployment. Prefer that one if you want Docker on an
+> existing box; use this if you run (or want to run) NixOS and prefer a single
+> declarative config. The hard-won fixes from that project's issue tracker are
+> baked into this one's config and tests.
+
 > **Status:** boot-verified in CI, not yet battle-tested on real hardware — see
 > [Project status](#project-status). If you run it, open an issue with how it went.
 
@@ -118,6 +125,13 @@ nixmatrix.bridges.signal.enable   = true;
 
 A disabled bridge contributes nothing and can never prevent the homeserver from
 starting; each enabled bridge registers itself with Synapse automatically.
+
+Other optional toggles (all default off, set in the same file):
+
+```nix
+nixmatrix.openRegistration = true;   # public self-signup (else admin-only)
+nixmatrix.sso.enable       = true;   # Authelia SSO in front of MAS
+```
 
 Secrets live in `secrets/secrets.yaml` (encrypted with sops). The bootstrap script
 generates them for you; the template is documented in
