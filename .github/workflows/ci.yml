@@ -15,15 +15,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# NOTE: this workflow deliberately uses only first-party actions/* actions and
-# installs Nix from the official script. The runner environment this repo builds
-# on does not allow third-party marketplace actions (they resolve to a missing
-# v999.999.999 placeholder), so DeterminateSystems/* and jlumbroso/* are out.
-
 jobs:
   # ── Fast lane: static config checks + flake evaluation ──────────────────────
-  # No heavy builds — just shellcheck, the project's own check-nix.sh, and a
-  # full evaluation of every flake output. Catches most breakage in minutes.
+  # No heavy builds — just parses, lints, the project's own check-nix.sh, and a
+  # full evaluation of every flake output. Catches the vast majority of breakage
+  # in a couple of minutes.
   static-checks:
     name: Static checks
     runs-on: ubuntu-latest
@@ -31,21 +27,25 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Nix (flakes enabled)
-        run: |
-          sh <(curl -L https://nixos.org/nix/install) --no-daemon
-          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
-          mkdir -p ~/.config/nix
-          echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Check flake.lock health
+        uses: DeterminateSystems/flake-checker-action@main
 
       - name: Provide age, sops, openssl
         run: nix profile install nixpkgs#age nixpkgs#sops nixpkgs#openssl
 
       - name: Generate dummy test secrets
+        # Reuses the committed test age key (decrypts only dummy data) and
+        # encrypts freshly-generated dummy secrets so the VM config evaluates.
         run: ./test/setup-test-secrets.sh
 
       - name: ShellCheck scripts
+        # -S warning: fail on real warnings/errors, but not on info/style notes.
+        # The test scripts use the idiomatic `cmd && pass || fail` pattern, which
+        # trips SC2015 (info) ~40 times; those are intentional, not bugs.
         run: |
-          nix shell nixpkgs#shellcheck -c shellcheck \
+          nix shell nixpkgs#shellcheck -c shellcheck -S warning \
             scripts/bootstrap.sh \
             scripts/restore-db.sh \
             test/setup-test-secrets.sh \
@@ -73,20 +73,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Free up disk space
-        # The runner only has ~14 GB free by default; the closure is large.
-        # Inline cleanup (no third-party action available here).
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
-          sudo docker image prune --all --force || true
-          df -h /
+        # The GitHub runner only has ~14 GB free by default; the closure is large.
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: false
 
       - name: Install Nix (flakes enabled)
-        run: |
-          sh <(curl -L https://nixos.org/nix/install) --no-daemon
-          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
-          mkdir -p ~/.config/nix
-          echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+        uses: DeterminateSystems/nix-installer-action@main
 
       - name: Provide age, sops, openssl
         run: nix profile install nixpkgs#age nixpkgs#sops nixpkgs#openssl
@@ -121,18 +115,13 @@ jobs:
           ls -l /dev/kvm
 
       - name: Free up disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
-          sudo docker image prune --all --force || true
-          df -h /
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: false
 
       - name: Install Nix (flakes enabled)
-        run: |
-          sh <(curl -L https://nixos.org/nix/install) --no-daemon
-          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
-          mkdir -p ~/.config/nix
-          echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+        uses: DeterminateSystems/nix-installer-action@main
 
       - name: Provide age, sops, openssl
         run: nix profile install nixpkgs#age nixpkgs#sops nixpkgs#openssl
