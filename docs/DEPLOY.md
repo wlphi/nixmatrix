@@ -60,6 +60,23 @@ Point these records at your server's IP. Replace `example.com` with your domain.
 
 The simplest setup is a wildcard `*.example.com` plus the apex `example.com`.
 
+Your Matrix IDs will be `@you:example.com` (the apex), even though Synapse itself
+runs at `matrix.example.com` — the apex's `.well-known/matrix/*` files delegate to
+it. Use the apex as your `nixmatrix.domain`, not the `matrix.` subdomain.
+
+> **Already host a website on `example.com`?** Pointing the apex's DNS at this
+> server would replace that site. Instead, leave the apex where it is and serve
+> just these two paths from your existing site:
+> - `https://example.com/.well-known/matrix/client`
+>   → `{"m.homeserver":{"base_url":"https://matrix.example.com"},"m.authentication":{"issuer":"https://auth.example.com/"}}`
+> - `https://example.com/.well-known/matrix/server`
+>   → `{"m.server":"matrix.example.com:443"}`
+>
+> Both must be served with `Content-Type: application/json` and
+> `Access-Control-Allow-Origin: *`. You then don't need an A record for the apex
+> pointing here — only the subdomains. (The apex vhost in `modules/caddy.nix`
+> can be removed in that case.)
+
 Caddy obtains Let's Encrypt certificates automatically on first boot, so DNS must
 resolve **before** you deploy. Ports 80 and 443 must be reachable for the ACME
 HTTP challenge.

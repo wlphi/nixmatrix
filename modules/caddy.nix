@@ -23,16 +23,16 @@ in
 
     virtualHosts = {
 
-      # ── mair.io — well-known delegation only ────────────────────────────
-      # server_name = "mair.io" but Synapse is on matrix.mair.io.
-      # Matrix clients/servers fetch /.well-known/matrix/* from the server_name domain
-      # to discover the homeserver address.
+      # ── <domain> (apex) — well-known delegation only ────────────────────
+      # server_name is the apex <domain> (Matrix IDs are @user:<domain>), but
+      # Synapse runs on matrix.<domain>. Clients/servers fetch
+      # /.well-known/matrix/* from the apex to discover the real homeserver.
       #
-      # Option A (if mair.io is served elsewhere):
-      #   Add the two well-known routes to your existing mair.io web server instead
-      #   and remove this vhost.
-      # Option B (this VPS handles mair.io DNS too):
-      #   Point mair.io DNS to this server — Caddy handles the well-known delegation.
+      # ⚠️ If your apex already hosts a website elsewhere, do NOT point its DNS
+      # here (that would replace your site). Instead serve just these two
+      # /.well-known/matrix/* routes from your existing apex site and delete
+      # this vhost. See docs/DEPLOY.md §2 (DNS). Otherwise, point the apex at
+      # this server and Caddy handles the delegation.
       "${domain}" = {
         extraConfig = ''
           handle /.well-known/matrix/client {
@@ -43,6 +43,7 @@ in
 
           handle /.well-known/matrix/server {
             header Content-Type application/json
+            header Access-Control-Allow-Origin "*"
             respond `{"m.server":"matrix.${domain}:443"}`
           }
 
@@ -97,6 +98,7 @@ in
           }
           handle /.well-known/matrix/server {
             header Content-Type application/json
+            header Access-Control-Allow-Origin "*"
             respond `{"m.server":"matrix.${domain}:443"}`
           }
 
