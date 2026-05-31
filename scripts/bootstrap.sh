@@ -70,8 +70,21 @@ ok "age, sops, openssl present"
 
 # ── 1. Collect deployment parameters ─────────────────────────────────────────
 step "Deployment parameters"
+echo "  Use your APEX domain (example.com), not a subdomain — Matrix IDs become"
+echo "  @you:example.com and the service hosts (matrix., auth., element. …) are"
+echo "  derived from it."
 DOMAIN="$(ask "Your Matrix domain (e.g. example.com)")"
 [[ -n "$DOMAIN" ]] || { err "Domain is required."; exit 1; }
+# Strip an accidental scheme/trailing slash and sanity-check the shape.
+DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN%%/*}"
+if [[ ! "$DOMAIN" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+  err "That doesn't look like a domain: '$DOMAIN'"; exit 1
+fi
+case "$DOMAIN" in
+  matrix.*|auth.*|element.*|chat.*|admin.*|www.*)
+    warn "'$DOMAIN' looks like a SUBDOMAIN. Use the apex (e.g. ${DOMAIN#*.})."
+    confirm "Use '$DOMAIN' anyway?" || { err "Aborted — re-run with your apex domain."; exit 1; } ;;
+esac
 ACME_EMAIL="$(ask "ACME / Let's Encrypt contact email" "admin@${DOMAIN}")"
 
 DEFAULT_KEY=""
@@ -84,6 +97,12 @@ done
 echo "  Your SSH public key authorizes root login (password auth is disabled)."
 SSH_KEY="$(ask "SSH public key" "$DEFAULT_KEY")"
 [[ -n "$SSH_KEY" ]] || { err "An SSH public key is required or you'll be locked out."; exit 1; }
+if [[ ! "$SSH_KEY" =~ ^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-|sk-) ]]; then
+  err "That doesn't look like an SSH public key (expected it to start with"
+  err "'ssh-ed25519', 'ssh-rsa', 'ecdsa-sha2-', …). Got: ${SSH_KEY:0:20}…"
+  err "Tip: it's the contents of ~/.ssh/id_ed25519.pub, not the private key."
+  exit 1
+fi
 
 echo "  Target disk on the server (check with 'lsblk'): /dev/sda, /dev/vda, /dev/nvme0n1 ..."
 DISK="$(ask "Disk device" "/dev/sda")"
@@ -195,10 +214,20 @@ if [[ "$SKIP_GEN" != "1" ]]; then
   OIDC_RSA_KEY=""
   OIDC_RSA_KEY="$(openssl genrsa 4096 2>/dev/null | openssl pkcs8 -topk8 -nocrypt 2>/dev/null)"
 
-  echo "  Telegram bridge needs API credentials from https://my.telegram.org"
-  echo "  (leave blank to fill in later — the bridge just won't start until set)."
-  TG_ID="$(ask "telegram_api_id (numeric)" "0")"
-  TG_HASH="$(ask "telegram_api_hash" "REPLACE_ME")"
+  # Bridges are opt-in (nixmatrix.bridges.<net>.enable, default off). Only the
+  # Telegram bridge needs credentials baked into secrets.yaml, so only prompt
+  # for them if the user actually plans to enable it.
+  TG_ID="0"
+  TG_HASH="REPLACE_ME"
+  echo "  Messaging bridges (Telegram/WhatsApp/Signal/Discord) are OFF by default."
+  echo "  Enable the ones you want later in hosts/matrix-server.nix:"
+  echo "      nixmatrix.bridges.whatsapp.enable = true;   # etc."
+  if confirm "Will you use the TELEGRAM bridge? (it needs API credentials now)"; then
+    echo "  Get these from https://my.telegram.org → API development tools."
+    echo "  (You can still leave them blank and add them later via 'sops secrets/secrets.yaml'.)"
+    TG_ID="$(ask "telegram_api_id (numeric)" "0")"
+    TG_HASH="$(ask "telegram_api_hash" "REPLACE_ME")"
+  fi
 
   # Write the plaintext to the FINAL filename and encrypt in place. sops matches
   # creation_rules against the file path, and .sops.yaml anchors on
@@ -256,6 +285,13 @@ cat <<EOF
 
   ${BOLD}4. Later config changes:${NC}
        nixos-rebuild switch --flake .#matrix-server --target-host root@<SERVER_IP>
+
+  ${BOLD}Optional features${NC} (off by default — enable in hosts/matrix-server.nix):
+    • Messaging bridges:  nixmatrix.bridges.whatsapp.enable = true;  (etc.)
+    • SSO via Authelia:   nixmatrix.sso.enable = true;
+        Ships an example login admin / changeme — CHANGE IT before exposing.
+  ${BOLD}After deploying${NC}, create your first user and verify federation —
+  see docs/DEPLOY.md §6 (post-install) and §9 (known limitations: calls/TURN).
 
   To edit secrets later:  sops secrets/secrets.yaml
   Full guide:             docs/DEPLOY.md
