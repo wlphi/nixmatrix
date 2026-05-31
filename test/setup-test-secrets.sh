@@ -65,7 +65,6 @@ fi
 # Write plaintext template with dummy hex values (valid format for all services)
 DUMMY_HEX=$(openssl rand -hex 32)
 DUMMY_HEX2=$(openssl rand -hex 32)
-DUMMY_HEX3=$(openssl rand -hex 32)
 DUMMY_HEX4=$(openssl rand -hex 32)
 DUMMY_HEX5=$(openssl rand -hex 32)
 DUMMY_HEX6=$(openssl rand -hex 32)
